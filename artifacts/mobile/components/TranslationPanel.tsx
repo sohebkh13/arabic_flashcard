@@ -39,7 +39,6 @@ export function TranslationPanel({
   function handleSwapDirection() {
     const newDir: "ar_to_en" | "en_to_ar" = isArabicMode ? "en_to_ar" : "ar_to_en";
     setDirection(newDir);
-    // Swap input and translation if there's already a result
     if (translation) {
       setInputText(translation);
       setTranslation(inputText);
@@ -47,6 +46,13 @@ export function TranslationPanel({
       setInputText("");
       setTranslation("");
     }
+    setError("");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  function handleClear() {
+    setInputText("");
+    setTranslation("");
     setError("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
@@ -80,7 +86,9 @@ export function TranslationPanel({
       <View style={[styles.directionBar, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
         <View style={styles.langLabel}>
           <Text style={[styles.langText, { color: colors.foreground }]}>{sourceLang}</Text>
-          {isArabicMode && <Text style={[styles.langSub, { color: colors.mutedForeground }]}>العربية</Text>}
+          {isArabicMode && (
+            <Text style={[styles.langSub, { color: colors.mutedForeground }]}>العربية</Text>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.swapBtn, { backgroundColor: colors.primary }]}
@@ -91,11 +99,13 @@ export function TranslationPanel({
         </TouchableOpacity>
         <View style={[styles.langLabel, { alignItems: "flex-end" }]}>
           <Text style={[styles.langText, { color: colors.foreground }]}>{targetLang}</Text>
-          {!isArabicMode && <Text style={[styles.langSub, { color: colors.mutedForeground }]}>العربية</Text>}
+          {!isArabicMode && (
+            <Text style={[styles.langSub, { color: colors.mutedForeground }]}>العربية</Text>
+          )}
         </View>
       </View>
 
-      {/* Input */}
+      {/* Input box */}
       <View style={[styles.inputBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
         <TextInput
           value={inputText}
@@ -112,6 +122,11 @@ export function TranslationPanel({
           returnKeyType="done"
         />
         <View style={styles.inputActions}>
+          {inputText.length > 0 && (
+            <TouchableOpacity onPress={handleClear} style={styles.clearBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x-circle" size={18} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
           <MicButton
             size={38}
             onTranscription={(text) => setInputText(text)}
@@ -180,10 +195,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  langLabel: {
-    flex: 1,
-    gap: 2,
-  },
+  langLabel: { flex: 1, gap: 2 },
   langText: { fontSize: 15, fontWeight: "700" },
   langSub: { fontSize: 12 },
   swapBtn: {
@@ -200,7 +212,7 @@ const styles = StyleSheet.create({
     padding: 12,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 8,
     minHeight: 90,
   },
   input: {
@@ -215,7 +227,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
     writingDirection: "rtl",
   },
-  inputActions: { paddingTop: 4 },
+  inputActions: {
+    paddingTop: 4,
+    alignItems: "center",
+    gap: 10,
+  },
+  clearBtn: { padding: 2 },
   translateBtn: {
     borderRadius: 10,
     paddingVertical: 13,
@@ -224,20 +241,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  translateBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  resultBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-    gap: 14,
-  },
-  resultText: {
-    fontSize: 18,
-    lineHeight: 28,
-  },
+  translateBtnText: { fontSize: 15, fontWeight: "600" },
+  resultBox: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 14 },
+  resultText: { fontSize: 18, lineHeight: 28 },
   saveBtn: {
     borderRadius: 10,
     paddingVertical: 12,
@@ -246,14 +252,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  errorText: {
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 20,
-  },
+  saveBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  errorText: { fontSize: 13, textAlign: "center", lineHeight: 20 },
 });

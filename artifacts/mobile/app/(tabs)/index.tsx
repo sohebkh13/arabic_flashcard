@@ -5,9 +5,9 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -28,27 +28,31 @@ export default function HomeScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newDeckName, setNewDeckName] = useState("");
-  const [newDeckDialect, setNewDeckDialect] = useState<"MSA" | "Egyptian">("MSA");
   const [creating, setCreating] = useState(false);
 
   const totalDue = Object.values(dueByDeck).reduce((a, b) => a + b, 0);
 
-  async function handleCreateDeck() {
-    if (!newDeckName.trim()) return;
-    setCreating(true);
-    await createDeck(newDeckName.trim(), newDeckDialect);
-    setCreating(false);
-    setModalVisible(false);
-    setNewDeckName("");
-    setNewDeckDialect("MSA");
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }
-
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
 
+  function openModal() {
+    setNewDeckName("");
+    setModalVisible(true);
+  }
+
+  async function handleCreateDeck() {
+    if (!newDeckName.trim()) return;
+    setCreating(true);
+    await createDeck(newDeckName.trim(), "MSA");
+    setCreating(false);
+    setModalVisible(false);
+    setNewDeckName("");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <View>
           <Text style={[styles.title, { color: colors.foreground }]}>مجموعاتي</Text>
@@ -64,7 +68,7 @@ export default function HomeScreen() {
           )}
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={() => setModalVisible(true)}
+            onPress={openModal}
             activeOpacity={0.8}
           >
             <Feather name="plus" size={22} color={colors.primaryForeground} />
@@ -72,6 +76,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* Content */}
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} size="large" />
@@ -85,7 +90,7 @@ export default function HomeScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-            onPress={() => setModalVisible(true)}
+            onPress={openModal}
           >
             <Text style={[styles.emptyBtnText, { color: colors.primaryForeground }]}>Create First Deck</Text>
           </TouchableOpacity>
@@ -108,60 +113,62 @@ export default function HomeScreen() {
 
       {Platform.OS !== "web" && <FloatingBubble />}
 
+      {/* New Deck Modal */}
       <Modal
         visible={modalVisible}
         transparent
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.kvFlex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <TouchableOpacity style={styles.modalDismiss} onPress={() => setModalVisible(false)} />
           <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {/* Handle bar */}
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>New Deck</Text>
 
             <TextInput
               value={newDeckName}
               onChangeText={setNewDeckName}
-              placeholder="Deck name (e.g. Verbs)"
+              placeholder="e.g. Verbs, Food, Travel..."
               placeholderTextColor={colors.mutedForeground}
-              style={[styles.modalInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.secondary }]}
+              style={[
+                styles.modalInput,
+                { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.secondary },
+              ]}
               autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleCreateDeck}
             />
 
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>Dialect</Text>
-            <View style={styles.dialectRow}>
-              {(["MSA", "Egyptian"] as const).map((d) => (
-                <TouchableOpacity
-                  key={d}
-                  style={[
-                    styles.dialectOption,
-                    {
-                      borderColor: newDeckDialect === d ? colors.primary : colors.border,
-                      backgroundColor: newDeckDialect === d ? colors.primary + "22" : colors.secondary,
-                    },
-                  ]}
-                  onPress={() => setNewDeckDialect(d)}
-                >
-                  <Text style={[styles.dialectOptionText, { color: newDeckDialect === d ? colors.primary : colors.mutedForeground }]}>
-                    {d === "MSA" ? "Modern Standard" : "Egyptian"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.createBtn,
+                  { backgroundColor: colors.primary, opacity: !newDeckName.trim() ? 0.5 : 1 },
+                ]}
+                onPress={handleCreateDeck}
+                disabled={!newDeckName.trim() || creating}
+              >
+                {creating ? (
+                  <ActivityIndicator color={colors.primaryForeground} size="small" />
+                ) : (
+                  <Text style={[styles.createBtnText, { color: colors.primaryForeground }]}>Create</Text>
+                )}
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.createBtn, { backgroundColor: colors.primary, opacity: !newDeckName.trim() ? 0.5 : 1 }]}
-              onPress={handleCreateDeck}
-              disabled={!newDeckName.trim() || creating}
-            >
-              {creating ? (
-                <ActivityIndicator color={colors.primaryForeground} />
-              ) : (
-                <Text style={[styles.createBtnText, { color: colors.primaryForeground }]}>Create Deck</Text>
-              )}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -177,121 +184,46 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingBottom: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    textAlign: "right",
-    writingDirection: "rtl",
-  },
-  subtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  totalDueBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  totalDueText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    padding: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginTop: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  emptyBtn: {
-    marginTop: 8,
-    borderRadius: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
-  },
-  emptyBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalDismiss: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 4 },
+  title: { fontSize: 28, fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
+  subtitle: { fontSize: 13, marginTop: 2 },
+  addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  totalDueBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  totalDueText: { fontSize: 13, fontWeight: "700" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
+  emptyTitle: { fontSize: 20, fontWeight: "700", marginTop: 8 },
+  emptyText: { fontSize: 14, textAlign: "center", lineHeight: 22 },
+  emptyBtn: { marginTop: 8, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 13 },
+  emptyBtnText: { fontSize: 15, fontWeight: "600" },
+  // Modal
+  kvFlex: { flex: 1, justifyContent: "flex-end" },
+  modalDismiss: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   modalSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: 24,
-    paddingBottom: 40,
-    gap: 14,
+    paddingBottom: 36,
+    gap: 16,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  modalTitle: { fontSize: 20, fontWeight: "700" },
   modalInput: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  dialectRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  dialectOption: {
-    flex: 1,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  dialectOptionText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  createBtn: {
     borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
     paddingVertical: 14,
+    fontSize: 17,
+  },
+  modalActions: { flexDirection: "row", gap: 12 },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 13,
     alignItems: "center",
-    marginTop: 4,
   },
-  createBtnText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  cancelBtnText: { fontSize: 15, fontWeight: "600" },
+  createBtn: { flex: 2, borderRadius: 12, paddingVertical: 13, alignItems: "center" },
+  createBtnText: { fontSize: 15, fontWeight: "700" },
 });

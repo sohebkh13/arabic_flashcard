@@ -1,29 +1,11 @@
-import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import { BlurView } from "expo-blur";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "rectangle.stack", selected: "rectangle.stack.fill" }} />
-        <Label>Decks</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="translate">
-        <Icon sf={{ default: "character.book.closed", selected: "character.book.closed.fill" }} />
-        <Label>Translate</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
+export default function TabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -39,15 +21,20 @@ function ClassicTabLayout() {
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: 1,
+          borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
           elevation: 0,
           height: isWeb ? 84 : 60,
         },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          marginBottom: isWeb ? 0 : 4,
+        },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={100}
+              intensity={80}
               tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
             />
@@ -60,33 +47,20 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Decks",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="rectangle.stack" tintColor={color} size={24} />
-            ) : (
-              <Feather name="layers" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="layers" size={size ?? 22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="translate"
         options={{
           title: "Translate",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="globe" tintColor={color} size={24} />
-            ) : (
-              <Feather name="globe" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="globe" size={size ?? 22} color={color} />
+          ),
         }}
       />
     </Tabs>
   );
-}
-
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
 }
