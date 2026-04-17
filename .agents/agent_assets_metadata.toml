@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "k5ur7y7Itbb36ZBBjM7E3"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "arabic flashcard icon"

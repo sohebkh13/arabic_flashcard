@@ -1,0 +1,33 @@
+Project: Arabic Language Learning Flashcard App — Android Only
+Platform: Android only (minimum SDK Android 13). Target and test on Android 16. No iOS required at this stage.
+Tech Stack: React Native (Android), local device storage (no database server, no user auth, no cloud sync — everything stays on device), DeepL Free API for translation, on-device Whisper (open source, local inference — do NOT use OpenAI Whisper API endpoint, no API key, no cost) for voice transcription.
+
+Core Purpose:
+A personal Arabic vocabulary learning app. The user is learning Arabic — hardcode two dialect options at deck level: MSA and Egyptian. No other languages needed. The entire app is built around one core flow: encounter a word → capture it frictionlessly → save it with translation → review it later with spaced repetition.
+
+Feature 1 — Floating Overlay Bubble
+Implement a persistent floating bubble using SYSTEM_ALERT_WINDOW permission that stays visible across all apps at all times. The bubble sits on the edge of the screen and is draggable. Tapping it opens a compact floating translation popup without leaving the current app. Inside the popup: a text input field, a voice input button (using on-device Whisper), a translate button, the translation result, and a "Save as Flashcard" button. The popup should automatically detect and paste text from clipboard when opened. When "Save as Flashcard" is tapped, show a deck selector and save directly. Implement a foreground service to keep the bubble alive across app switching — this is critical on Android to prevent the OS from killing it.
+
+Feature 2 — Translation
+Use DeepL Free API (endpoint: api-free.deepl.com) for all translation. Default language pair is Arabic ↔ English. Translation works in two places only: inside the floating bubble popup and on the main app translation screen. On the main translation screen, show a large "Save as Flashcard" button beneath every translation result. DeepL only — no other translation provider.
+
+Feature 3 — Voice Input
+Use on-device Whisper (open source local inference, completely free, no API calls). Voice input must work in two places: the floating bubble and the main translation screen. The primary use case is the user speaking an Arabic word aloud and having it transcribed into Arabic script. Configure Whisper language to Arabic by default. Keep a clearly visible mic button in every place voice input is available — never hidden in a menu. Use the Whisper base or small model for a balance of speed and accuracy on device.
+
+Feature 4 — Flashcard Creation
+Each flashcard stores: the Arabic word in Arabic script, the English translation, an optional context sentence (free text, user types manually), a grammar notes field (free text, user types manually), a dialect label (MSA or Egyptian), and which deck it belongs to. On the flashcard creation screen, the word and translation fields must be pre-fillable from the translation screen via the "Save as Flashcard" button. No AI grammar suggestions — the grammar notes field is purely manual, the user writes whatever they want in it.
+
+Feature 5 — Deck Management
+The user can create multiple named decks (e.g., "Verbs," "Egyptian Slang," "Quran Vocabulary"). Each deck has a dialect setting (MSA or Egyptian) applied as default to all cards in that deck. Cards can be moved between decks. Home screen shows all decks with card count and how many cards are due for review today. Keep deck management simple — no folders, no nesting, no export.
+
+Feature 6 — Spaced Repetition Review
+Use the SM-2 spaced repetition algorithm via an existing open source library — do not build from scratch. Review screen is a standard flip card UI: Arabic word shown first, user recalls the meaning, taps to flip, sees the English translation and any grammar notes they wrote, then marks the card as one of three: Again / Hard / Easy. Scheduling updates automatically. Show daily review count per deck on the home screen.
+
+Feature 7 — Share Sheet Integration
+Register the app in the Android Share sheet. When the user selects any Arabic text in any other app — browser, WhatsApp, PDF reader, anywhere — and taps Share, the app appears as an option called "Add to Flashcard." Tapping it opens the translation popup with the selected text pre-filled, ready to translate and save to a deck. This works alongside the floating bubble as a second capture method.
+
+UI and UX Notes
+Clean and minimal UI. Four core screens only: Home (deck list and due cards count), Translation, Flashcard Creation, and Review. No onboarding. No login. No ads. Arabic text must render correctly right-to-left everywhere — test this explicitly on every screen. Floating bubble defaults to right edge of screen. Dark mode preferred as default since the app will be used frequently and Arabic text reads better on dark backgrounds.
+
+Do NOT Build Any of the Following in V1
+User accounts, authentication, cloud sync, multi-language support beyond Arabic and English, deck export or import, grammar suggestion AI, any paid API beyond DeepL free tier, gamification, streaks, social features, shared decks, iOS support, onboarding flow, or settings screen beyond basic deck dialect selection.
