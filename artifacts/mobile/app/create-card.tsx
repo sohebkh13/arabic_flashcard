@@ -4,15 +4,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -57,10 +56,7 @@ export default function CreateCardScreen() {
   const canSave = arabic.trim() && english.trim() && selectedDeckId;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Feather name="x" size={22} color={colors.foreground} />
@@ -77,10 +73,12 @@ export default function CreateCardScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}
+      <KeyboardAwareScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bottomOffset={24}
       >
         <View style={styles.field}>
           <Text style={[styles.label, { color: colors.mutedForeground }]}>Arabic Word *</Text>
@@ -186,13 +184,14 @@ export default function CreateCardScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  scroll: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "flex-end",

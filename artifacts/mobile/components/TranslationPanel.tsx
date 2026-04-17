@@ -11,31 +11,53 @@ import {
 } from "react-native";
 import { ArabicText } from "@/components/ArabicText";
 import { MicButton } from "@/components/MicButton";
-import { detectAndTranslate } from "@/lib/deepl";
+import { translate } from "@/lib/deepl";
 import { useColors } from "@/hooks/useColors";
 
 interface TranslationPanelProps {
   initialText?: string;
+  initialDirection?: "ar_to_en" | "en_to_ar";
   onSaveFlashcard?: (arabic: string, english: string) => void;
-  compact?: boolean;
 }
 
-export function TranslationPanel({ initialText = "", onSaveFlashcard, compact = false }: TranslationPanelProps) {
+export function TranslationPanel({
+  initialText = "",
+  initialDirection = "ar_to_en",
+  onSaveFlashcard,
+}: TranslationPanelProps) {
   const colors = useColors();
   const [inputText, setInputText] = useState(initialText);
   const [translation, setTranslation] = useState("");
-  const [direction, setDirection] = useState<"ar_to_en" | "en_to_ar">("ar_to_en");
+  const [direction, setDirection] = useState<"ar_to_en" | "en_to_ar">(initialDirection);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const isArabicMode = direction === "ar_to_en";
+  const sourceLang = isArabicMode ? "Arabic" : "English";
+  const targetLang = isArabicMode ? "English" : "Arabic";
+
+  function handleSwapDirection() {
+    const newDir: "ar_to_en" | "en_to_ar" = isArabicMode ? "en_to_ar" : "ar_to_en";
+    setDirection(newDir);
+    // Swap input and translation if there's already a result
+    if (translation) {
+      setInputText(translation);
+      setTranslation(inputText);
+    } else {
+      setInputText("");
+      setTranslation("");
+    }
+    setError("");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
 
   async function handleTranslate() {
     if (!inputText.trim()) return;
     setLoading(true);
     setError("");
     try {
-      const result = await detectAndTranslate(inputText.trim());
+      const result = await translate(inputText.trim(), direction);
       setTranslation(result.translatedText);
-      setDirection(result.direction);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: unknown) {
       setError((e as Error).message || "Translation failed");
@@ -46,42 +68,52 @@ export function TranslationPanel({ initialText = "", onSaveFlashcard, compact = 
 
   function handleSave() {
     if (!translation) return;
-    const arabic = direction === "ar_to_en" ? inputText : translation;
-    const english = direction === "ar_to_en" ? translation : inputText;
+    const arabic = isArabicMode ? inputText : translation;
+    const english = isArabicMode ? translation : inputText;
     onSaveFlashcard?.(arabic, english);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
-  const isArabicInput = /[\u0600-\u06FF]/.test(inputText);
-
   return (
     <View style={styles.container}>
-      <View style={[styles.inputRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
-        {isArabicInput ? (
-          <TextInput
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="اكتب كلمة عربية..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, styles.arabicInput, { color: colors.foreground }]}
-            textAlign="right"
-            multiline
-            returnKeyType="done"
-          />
-        ) : (
-          <TextInput
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Type Arabic or English..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, { color: colors.foreground }]}
-            multiline
-            returnKeyType="done"
-          />
-        )}
+      {/* Direction bar */}
+      <View style={[styles.directionBar, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+        <View style={styles.langLabel}>
+          <Text style={[styles.langText, { color: colors.foreground }]}>{sourceLang}</Text>
+          {isArabicMode && <Text style={[styles.langSub, { color: colors.mutedForeground }]}>العربية</Text>}
+        </View>
+        <TouchableOpacity
+          style={[styles.swapBtn, { backgroundColor: colors.primary }]}
+          onPress={handleSwapDirection}
+          activeOpacity={0.8}
+        >
+          <Feather name="repeat" size={16} color={colors.primaryForeground} />
+        </TouchableOpacity>
+        <View style={[styles.langLabel, { alignItems: "flex-end" }]}>
+          <Text style={[styles.langText, { color: colors.foreground }]}>{targetLang}</Text>
+          {!isArabicMode && <Text style={[styles.langSub, { color: colors.mutedForeground }]}>العربية</Text>}
+        </View>
+      </View>
+
+      {/* Input */}
+      <View style={[styles.inputBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <TextInput
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder={isArabicMode ? "اكتب كلمة عربية..." : "Type English word or phrase..."}
+          placeholderTextColor={colors.mutedForeground}
+          style={[
+            styles.input,
+            isArabicMode && styles.arabicInput,
+            { color: colors.foreground },
+          ]}
+          textAlign={isArabicMode ? "right" : "left"}
+          multiline
+          returnKeyType="done"
+        />
         <View style={styles.inputActions}>
           <MicButton
-            size={36}
+            size={38}
             onTranscription={(text) => setInputText(text)}
             onError={(err) => setError(err)}
           />
@@ -92,6 +124,7 @@ export function TranslationPanel({ initialText = "", onSaveFlashcard, compact = 
         <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
       ) : null}
 
+      {/* Translate button */}
       <TouchableOpacity
         style={[
           styles.translateBtn,
@@ -105,18 +138,19 @@ export function TranslationPanel({ initialText = "", onSaveFlashcard, compact = 
           <ActivityIndicator color={colors.primaryForeground} />
         ) : (
           <>
-            <Feather name="refresh-cw" size={16} color={colors.primaryForeground} />
+            <Feather name="globe" size={16} color={colors.primaryForeground} />
             <Text style={[styles.translateBtnText, { color: colors.primaryForeground }]}>Translate</Text>
           </>
         )}
       </TouchableOpacity>
 
+      {/* Result */}
       {translation ? (
         <View style={[styles.resultBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          {direction === "ar_to_en" ? (
-            <Text style={[styles.resultText, { color: colors.foreground }]}>{translation}</Text>
-          ) : (
+          {!isArabicMode ? (
             <ArabicText size="medium" color={colors.foreground}>{translation}</ArabicText>
+          ) : (
+            <Text style={[styles.resultText, { color: colors.foreground }]}>{translation}</Text>
           )}
 
           {onSaveFlashcard ? (
@@ -137,32 +171,54 @@ export function TranslationPanel({ initialText = "", onSaveFlashcard, compact = 
 
 const styles = StyleSheet.create({
   container: { gap: 12 },
-  inputRow: {
+  directionBar: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  langLabel: {
+    flex: 1,
+    gap: 2,
+  },
+  langText: { fontSize: 15, fontWeight: "700" },
+  langSub: { fontSize: 12 },
+  swapBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 12,
+  },
+  inputBox: {
     borderRadius: 12,
     borderWidth: 1,
     padding: 12,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    minHeight: 80,
+    minHeight: 90,
   },
   input: {
     flex: 1,
     fontSize: 16,
     lineHeight: 24,
+    minHeight: 60,
   },
   arabicInput: {
     fontSize: 22,
-    lineHeight: 36,
+    lineHeight: 38,
     textAlign: "right",
     writingDirection: "rtl",
   },
-  inputActions: {
-    paddingTop: 4,
-  },
+  inputActions: { paddingTop: 4 },
   translateBtn: {
     borderRadius: 10,
-    paddingVertical: 12,
+    paddingVertical: 13,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -198,5 +254,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     textAlign: "center",
+    lineHeight: 20,
   },
 });

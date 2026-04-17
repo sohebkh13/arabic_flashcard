@@ -1,14 +1,13 @@
-import { useRouter } from "expo-router";
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TranslationPanel } from "@/components/TranslationPanel";
 import { useColors } from "@/hooks/useColors";
@@ -29,30 +28,32 @@ export default function TranslateScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Translate</Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Arabic ↔ English</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          Tap the swap button to change direction
+        </Text>
       </View>
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 80 }]}
+      <KeyboardAwareScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bottomOffset={24}
       >
         <TranslationPanel
           initialText={initialText}
           onSaveFlashcard={handleSave}
         />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  scroll: { flex: 1 },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -62,8 +63,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   subtitle: {
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 13,
+    marginTop: 3,
   },
   content: {
     padding: 20,

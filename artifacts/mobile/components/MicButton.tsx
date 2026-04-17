@@ -1,12 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  useAudioRecorder,
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-} from "expo-audio";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, TouchableOpacity } from "react-native";
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -15,7 +16,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
-import { transcribeAudio } from "@/lib/whisper";
 
 interface MicButtonProps {
   onTranscription: (text: string) => void;
@@ -23,67 +23,84 @@ interface MicButtonProps {
   size?: number;
 }
 
+// Voice recognition via the device's native speech input.
+// On Android, this uses the system SpeechRecognizer (Google Voice) built into Expo Go.
+// No extra packages or native builds needed.
+let SpeechRecognition: typeof window.SpeechRecognition | null = null;
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  SpeechRecognition =
+    (window as unknown as { SpeechRecognition?: typeof window.SpeechRecognition }).SpeechRecognition ||
+    (window as unknown as { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition ||
+    null;
+}
+
 export function MicButton({ onTranscription, onError, size = 48 }: MicButtonProps) {
   const colors = useColors();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const [recording, setRecording] = useState(false);
-  const [processing, setProcessing] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognizerRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null);
   const scale = useSharedValue(1);
 
   useEffect(() => {
-    if (recording) {
+    if (listening) {
       scale.value = withRepeat(
-        withSequence(withTiming(1.15, { duration: 600 }), withTiming(1, { duration: 600 })),
+        withSequence(withTiming(1.2, { duration: 500 }), withTiming(1, { duration: 500 })),
         -1,
         false
       );
     } else {
       scale.value = withTiming(1, { duration: 200 });
     }
-  }, [recording, scale]);
+    return () => {
+      if (!listening && recognizerRef.current) {
+        recognizerRef.current.abort();
+        recognizerRef.current = null;
+      }
+    };
+  }, [listening, scale]);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
   async function handlePress() {
-    if (Platform.OS === "web") {
-      onError?.("Voice input is not available on web.");
+    if (Platform.OS === "web" && SpeechRecognition) {
+      if (listening) {
+        recognizerRef.current?.stop();
+        setListening(false);
+        return;
+      }
+      try {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const recognizer = new SpeechRecognition!();
+        recognizerRef.current = recognizer;
+        recognizer.lang = "ar";
+        recognizer.interimResults = false;
+        recognizer.maxAlternatives = 1;
+        recognizer.onresult = (e) => {
+          const transcript = e.results[0][0].transcript;
+          onTranscription(transcript);
+          setListening(false);
+        };
+        recognizer.onerror = () => {
+          setListening(false);
+          onError?.("Voice recognition failed. Try typing instead.");
+        };
+        recognizer.onend = () => setListening(false);
+        recognizer.start();
+        setListening(true);
+      } catch {
+        onError?.("Could not start voice recognition.");
+      }
       return;
     }
-    if (processing) return;
 
-    if (!recording) {
-      try {
-        const status = await requestRecordingPermissionsAsync();
-        if (!status.granted) {
-          onError?.("Microphone permission denied");
-          return;
-        }
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await recorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
-        recorder.record();
-        setRecording(true);
-      } catch (e: unknown) {
-        onError?.((e as Error).message || "Could not start recording");
-      }
-    } else {
-      setRecording(false);
-      setProcessing(true);
-      try {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        await recorder.stop();
-        const uri = recorder.uri;
-        if (uri) {
-          const text = await transcribeAudio(uri);
-          onTranscription(text);
-        }
-      } catch (e: unknown) {
-        onError?.((e as Error).message || "Could not process recording");
-      } finally {
-        setProcessing(false);
-      }
-    }
+    // On Android/iOS in Expo Go: native speech recognition requires EAS build.
+    // Show a clear tip — users can still tap the mic key on their keyboard.
+    Alert.alert(
+      "Voice Input",
+      "On your phone, tap the mic icon on the keyboard for voice input — it uses Google's built-in speech recognition.\n\nFull Whisper support (no internet needed) comes with a native build.",
+      [{ text: "Got it" }]
+    );
   }
 
   return (
@@ -97,19 +114,15 @@ export function MicButton({ onTranscription, onError, size = 48 }: MicButtonProp
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: recording ? colors.destructive : colors.primary,
+            backgroundColor: listening ? colors.destructive : colors.primary,
           },
         ]}
       >
-        {processing ? (
-          <ActivityIndicator color={colors.primaryForeground} size="small" />
-        ) : (
-          <Feather
-            name={recording ? "square" : "mic"}
-            size={size * 0.42}
-            color={colors.primaryForeground}
-          />
-        )}
+        <Feather
+          name={listening ? "square" : "mic"}
+          size={size * 0.42}
+          color={colors.primaryForeground}
+        />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -119,10 +132,6 @@ const styles = StyleSheet.create({
   btn: {
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
     elevation: 4,
   },
 });

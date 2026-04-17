@@ -4,16 +4,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArabicText } from "@/components/ArabicText";
 import { useApp } from "@/context/AppContext";
@@ -76,10 +75,7 @@ export default function CardDetailScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -97,10 +93,12 @@ export default function CardDetailScreen() {
         </View>
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
+        style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={24}
       >
         {editing ? (
           <>
@@ -115,15 +113,29 @@ export default function CardDetailScreen() {
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>English</Text>
-              <TextInput value={english} onChangeText={setEnglish} style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]} />
+              <TextInput
+                value={english}
+                onChangeText={setEnglish}
+                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+              />
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Context</Text>
-              <TextInput value={context} onChangeText={setContext} style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]} multiline />
+              <TextInput
+                value={context}
+                onChangeText={setContext}
+                style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                multiline
+              />
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes</Text>
-              <TextInput value={grammarNotes} onChangeText={setGrammarNotes} style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]} multiline />
+              <TextInput
+                value={grammarNotes}
+                onChangeText={setGrammarNotes}
+                style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                multiline
+              />
             </View>
             <View style={styles.dialectRow}>
               {(["MSA", "Egyptian"] as const).map((d) => (
@@ -145,7 +157,6 @@ export default function CardDetailScreen() {
             <View style={[styles.arabicCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <ArabicText size="hero" color={colors.foreground}>{card.arabic}</ArabicText>
             </View>
-
             <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.infoRow}>
                 <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Translation</Text>
@@ -164,7 +175,6 @@ export default function CardDetailScreen() {
                 </View>
               ) : null}
             </View>
-
             <View style={[styles.metaCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.metaRow}>
                 <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Deck</Text>
@@ -179,13 +189,13 @@ export default function CardDetailScreen() {
                 <Text style={[styles.metaValue, { color: colors.foreground }]}>{nextReview}</Text>
               </View>
               <View style={styles.metaRow}>
-                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Reps</Text>
+                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Repetitions</Text>
                 <Text style={[styles.metaValue, { color: colors.foreground }]}>{card.repetitions}</Text>
               </View>
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={moveModal} transparent animationType="slide" onRequestClose={() => setMoveModal(false)}>
         <View style={styles.modalOverlay}>
@@ -205,12 +215,13 @@ export default function CardDetailScreen() {
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  scroll: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row",
