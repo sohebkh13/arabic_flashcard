@@ -15,6 +15,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArabicText } from "@/components/ArabicText";
+import { ListenButton } from "@/components/ListenButton";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -55,6 +56,15 @@ export default function CardDetailScreen() {
   }
 
   async function handleDelete() {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("Delete this card? Cannot be undone.");
+      if (confirmed) {
+        await removeCard(card!.id);
+        router.back();
+      }
+      return;
+    }
+
     Alert.alert("Delete Card", "Delete this card? Cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       {
@@ -156,11 +166,17 @@ export default function CardDetailScreen() {
           <>
             <View style={[styles.arabicCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <ArabicText size="hero" color={colors.foreground}>{card.arabic}</ArabicText>
+              <View style={styles.listenWrap}>
+                <ListenButton text={card.arabic} language="ar" size={24} />
+              </View>
             </View>
             <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.infoRow}>
                 <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Translation</Text>
-                <Text style={[styles.infoValue, styles.englishValue, { color: colors.foreground }]}>{card.english}</Text>
+                <View style={styles.translationRow}>
+                  <Text style={[styles.infoValue, styles.englishValue, { color: colors.foreground }]}>{card.english}</Text>
+                  <ListenButton text={card.english} language="en" size={18} />
+                </View>
               </View>
               {card.context ? (
                 <View style={styles.infoRow}>
@@ -233,9 +249,11 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: "row", gap: 18 },
   content: { padding: 20, gap: 16 },
-  arabicCard: { borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", justifyContent: "center", minHeight: 160 },
+  arabicCard: { borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", justifyContent: "center", minHeight: 160, gap: 12 },
+  listenWrap: { marginTop: 4 },
   infoCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   infoRow: { padding: 16, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(128,128,128,0.2)" },
+  translationRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   infoLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   infoValue: { fontSize: 16, lineHeight: 24 },
   englishValue: { fontWeight: "600", fontSize: 18 },

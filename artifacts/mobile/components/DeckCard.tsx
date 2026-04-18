@@ -21,41 +21,83 @@ export function DeckCard({ deck, cardCount, dueCount }: DeckCardProps) {
     router.push({ pathname: "/deck/[id]", params: { id: deck.id } });
   }
 
+  function handleReview() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({ 
+      pathname: "/review", 
+      params: { deckId: deck.id, mode: dueCount > 0 ? "review" : "revision" } 
+    });
+  }
+
   return (
     <TouchableOpacity
       style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
       onPress={handlePress}
       activeOpacity={0.8}
     >
-      <View style={styles.top}>
-        <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
-          {deck.name}
-        </Text>
-        <View style={[styles.dialectBadge, { backgroundColor: colors.secondary }]}>
-          <Text style={[styles.dialectText, { color: colors.mutedForeground }]}>{deck.dialect}</Text>
-        </View>
-      </View>
-
-      <View style={styles.bottom}>
-        <View style={styles.stat}>
-          <Feather name="layers" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.statText, { color: colors.mutedForeground }]}>{cardCount} cards</Text>
-        </View>
-        {dueCount > 0 ? (
-          <View style={[styles.dueBadge, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.dueText, { color: colors.primaryForeground }]}>
-              {dueCount} due
+      <View style={styles.cardInner}>
+        <View style={styles.cardContent}>
+          <View style={styles.top}>
+            <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+              {deck.name}
             </Text>
+            <View style={[styles.dialectBadge, { backgroundColor: colors.secondary }]}>
+              <Text style={[styles.dialectText, { color: colors.mutedForeground }]}>{deck.dialect}</Text>
+            </View>
           </View>
-        ) : (
-          <View style={[styles.doneBadge, { backgroundColor: colors.success + "22" }]}>
-            <Feather name="check" size={12} color={colors.success || "#4caf7d"} />
-            <Text style={[styles.doneText, { color: colors.success || "#4caf7d" }]}>Up to date</Text>
+
+          <View style={styles.bottom}>
+            <View style={styles.stat}>
+              <Feather name="layers" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.statText, { color: colors.mutedForeground }]}>{cardCount} cards</Text>
+            </View>
+            {dueCount > 0 ? (
+              <View style={[styles.dueBadge, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.dueText, { color: colors.primaryForeground }]}>
+                  {dueCount} due
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.doneBadge, { backgroundColor: (colors.success || "#4caf7d") + "22" }]}>
+                <Feather name="check" size={12} color={colors.success || "#4caf7d"} />
+                <Text style={[styles.doneText, { color: colors.success || "#4caf7d" }]}>Up to date</Text>
+              </View>
+            )}
           </View>
-        )}
+        </View>
+
+        <View style={styles.chevronWrap}>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </View>
       </View>
 
-      <Feather name="chevron-right" size={18} color={colors.mutedForeground} style={styles.chevron} />
+      {/* Review button */}
+      {cardCount > 0 && (
+        <TouchableOpacity
+          style={[
+            styles.reviewBtn,
+            dueCount > 0
+              ? { backgroundColor: colors.primary }
+              : { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border },
+          ]}
+          onPress={handleReview}
+          activeOpacity={0.75}
+        >
+          <Feather
+            name="zap"
+            size={14}
+            color={dueCount > 0 ? colors.primaryForeground : colors.mutedForeground}
+          />
+          <Text
+            style={[
+              styles.reviewBtnText,
+              { color: dueCount > 0 ? colors.primaryForeground : colors.mutedForeground },
+            ]}
+          >
+            {dueCount > 0 ? `Review now · ${dueCount} due` : "Review all"}
+          </Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -65,8 +107,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 16,
+    gap: 12,
+  },
+  cardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cardContent: {
+    flex: 1,
     gap: 10,
-    position: "relative",
   },
   top: {
     flexDirection: "row",
@@ -122,9 +171,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  chevron: {
-    position: "absolute",
-    right: 16,
-    top: "50%",
+  chevronWrap: {
+    paddingLeft: 8,
+    justifyContent: "center",
+  },
+  reviewBtn: {
+    borderRadius: 10,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  reviewBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

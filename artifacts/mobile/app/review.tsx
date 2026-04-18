@@ -1,9 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
@@ -21,26 +20,40 @@ import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { Flashcard } from "@/lib/storage";
 import { ReviewGrade, sm2Review } from "@/lib/sm2";
+import { ListenButton } from "@/components/ListenButton";
 
 export default function ReviewScreen() {
-  const { deckId } = useLocalSearchParams<{ deckId: string }>();
+  const { deckId, mode } = useLocalSearchParams<{ deckId: string; mode?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { cards, editCard } = useApp();
 
-  const dueCards = cards.filter((c) => {
+  const targetCards = cards.filter((c) => {
     if (deckId && c.deckId !== deckId) return false;
+    if (mode === "revision") return true;
     return c.dueDate <= Date.now();
   });
 
-  const [queue, setQueue] = useState<Flashcard[]>([...dueCards]);
+  const [queue] = useState<Flashcard[]>(() => {
+    const arr = [...targetCards];
+    if (mode === "revision") {
+      // Shuffle for revision practice
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+    return arr;
+  });
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [showBack, setShowBack] = useState(false);
   const [done, setDone] = useState(false);
   const [reviewed, setReviewed] = useState(0);
 
   const flipProgress = useSharedValue(0);
+
   const frontStyle = useAnimatedStyle(() => ({
     opacity: flipProgress.value < 0.5 ? 1 : 0,
     transform: [{ rotateX: `${flipProgress.value * 180}deg` }],
@@ -57,6 +70,7 @@ export default function ReviewScreen() {
   function handleFlip() {
     if (flipped) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowBack(true);
     flipProgress.value = withTiming(1, { duration: 350 });
     setFlipped(true);
   }
@@ -75,6 +89,7 @@ export default function ReviewScreen() {
 
     flipProgress.value = 0;
     setFlipped(false);
+    setShowBack(false);
     setReviewed((r) => r + 1);
 
     if (currentIdx + 1 >= queue.length) {
@@ -94,9 +109,13 @@ export default function ReviewScreen() {
         </View>
         <View style={styles.center}>
           <Feather name="check-circle" size={56} color={colors.success || "#4caf7d"} />
-          <Text style={[styles.doneTitle, { color: colors.foreground }]}>All caught up!</Text>
+          <Text style={[styles.doneTitle, { color: colors.foreground }]}>
+            {mode === "revision" ? "Deck is empty" : "All caught up!"}
+          </Text>
           <Text style={[styles.doneText, { color: colors.mutedForeground }]}>
-            No cards due for review right now.
+            {mode === "revision" 
+              ? "Add some cards to this deck to start revising."
+              : "No cards due for review right now."}
           </Text>
           <TouchableOpacity
             style={[styles.doneBtn, { backgroundColor: colors.primary }]}
@@ -159,38 +178,50 @@ export default function ReviewScreen() {
           onPress={handleFlip}
           activeOpacity={0.92}
         >
-          <Animated.View style={[styles.cardFace, frontStyle]}>
-            <Text style={[styles.tapHint, { color: colors.mutedForeground }]}>Tap to reveal</Text>
-            <ArabicText size="hero" color={colors.foreground}>
-              {current?.arabic}
-            </ArabicText>
-            <View style={[styles.dialectPill, { backgroundColor: colors.secondary }]}>
-              <Text style={[styles.dialectPillText, { color: colors.mutedForeground }]}>
-                {current?.dialect}
-              </Text>
-            </View>
-          </Animated.View>
-
-          <Animated.View style={[styles.cardFace, styles.cardBack, backStyle]}>
-            <Text style={[styles.arabicSmall, { color: colors.mutedForeground }]}>
-              {current?.arabic}
-            </Text>
-            <Text style={[styles.englishMain, { color: colors.foreground }]}>
-              {current?.english}
-            </Text>
-            {current?.grammarNotes ? (
-              <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
-                <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Grammar</Text>
-                <Text style={[styles.notesText, { color: colors.foreground }]}>{current.grammarNotes}</Text>
+          {/* Conditionally render front or back to avoid absolute positioning collapse on native */}
+          {!showBack ? (
+            <Animated.View style={[styles.cardFace, frontStyle]}>
+              <Text style={[styles.tapHint, { color: colors.mutedForeground }]}>Tap to reveal</Text>
+              <ArabicText size="hero" color={colors.foreground}>
+                {current?.arabic}
+              </ArabicText>
+              <View style={styles.listenWrapFront}>
+                <ListenButton text={current?.arabic} language="ar" size={24} />
               </View>
-            ) : null}
-            {current?.context ? (
-              <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
-                <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Context</Text>
-                <Text style={[styles.notesText, { color: colors.foreground }]}>{current.context}</Text>
+              <View style={[styles.dialectPill, { backgroundColor: colors.secondary }]}>
+                <Text style={[styles.dialectPillText, { color: colors.mutedForeground }]}>
+                  {current?.dialect}
+                </Text>
               </View>
-            ) : null}
-          </Animated.View>
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.cardFace, backStyle]}>
+              <View style={styles.backHeader}>
+                <Text style={[styles.arabicSmall, { color: colors.mutedForeground }]}>
+                  {current?.arabic}
+                </Text>
+                <ListenButton text={current?.arabic} language="ar" size={16} />
+              </View>
+              <View style={styles.backMain}>
+                <Text style={[styles.englishMain, { color: colors.foreground }]}>
+                  {current?.english}
+                </Text>
+                <ListenButton text={current?.english} language="en" size={20} />
+              </View>
+              {current?.grammarNotes ? (
+                <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Grammar</Text>
+                  <Text style={[styles.notesText, { color: colors.foreground }]}>{current.grammarNotes}</Text>
+                </View>
+              ) : null}
+              {current?.context ? (
+                <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Context</Text>
+                  <Text style={[styles.notesText, { color: colors.foreground }]}>{current.context}</Text>
+                </View>
+              ) : null}
+            </Animated.View>
+          )}
         </TouchableOpacity>
 
         {flipped && (
@@ -262,17 +293,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 4,
-    position: "relative",
-    overflow: "hidden",
   },
   cardFace: {
     alignItems: "center",
     gap: 16,
-    position: "absolute",
-    left: 28,
-    right: 28,
+    width: "100%",
   },
-  cardBack: {},
   tapHint: { fontSize: 13, fontWeight: "500" },
   dialectPill: {
     borderRadius: 6,
@@ -280,6 +306,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   dialectPillText: { fontSize: 12, fontWeight: "600" },
+  listenWrapFront: { marginTop: -4 },
+  backHeader: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  backMain: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" },
   arabicSmall: { fontSize: 20, textAlign: "right", writingDirection: "rtl" },
   englishMain: { fontSize: 28, fontWeight: "700", textAlign: "center" },
   notesBox: { borderRadius: 10, padding: 12, alignSelf: "stretch", gap: 4 },

@@ -21,6 +21,7 @@ interface MicButtonProps {
   onTranscription: (text: string) => void;
   onError?: (err: string) => void;
   size?: number;
+  language?: "ar" | "en";
 }
 
 // Voice recognition via the device's native speech input.
@@ -34,7 +35,7 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
     null;
 }
 
-export function MicButton({ onTranscription, onError, size = 48 }: MicButtonProps) {
+export function MicButton({ onTranscription, onError, size = 48, language = "ar" }: MicButtonProps) {
   const colors = useColors();
   const [listening, setListening] = useState(false);
   const recognizerRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null);
@@ -73,7 +74,8 @@ export function MicButton({ onTranscription, onError, size = 48 }: MicButtonProp
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const recognizer = new SpeechRecognition!();
         recognizerRef.current = recognizer;
-        recognizer.lang = "ar";
+        // Force specific locale to ensure proper script (e.g., ar-SA for Arabic script instead of transliteration)
+        recognizer.lang = language === "ar" ? "ar-SA" : "en-US";
         recognizer.interimResults = false;
         recognizer.maxAlternatives = 1;
         recognizer.onresult = (e) => {

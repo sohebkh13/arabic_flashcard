@@ -5,14 +5,14 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import * as Font from "expo-font";
+import { Feather } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { useColorScheme } from "react-native";
+import { useColorScheme, Platform } from "react-native";
 import { AppProvider } from "@/context/AppContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -21,16 +21,20 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+// On native (Expo Go), explicitly load the Feather icon font.
+// On web, the font is loaded via web/index.html @font-face CSS — no JS needed.
+if (Platform.OS !== "web") {
+  Feather.loadFont().catch(() => {});
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-
+  
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    // Explicitly load Feather icon font so icons render in Expo Go on physical devices
-    Feather: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf"),
   });
 
   useEffect(() => {

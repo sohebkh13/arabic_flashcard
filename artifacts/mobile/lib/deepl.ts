@@ -1,6 +1,12 @@
 // DeepL Free API — header-based authentication (required since Nov 2025)
+import { Platform } from "react-native";
+
 const DEEPL_API_KEY = process.env.EXPO_PUBLIC_DEEPL_API_KEY ?? "";
-const DEEPL_BASE = "https://api-free.deepl.com/v2";
+// On web, browsers block direct calls (CORS). Route through local proxy.
+// On native (Expo Go / Android), call DeepL directly — no CORS restrictions.
+const DEEPL_BASE = Platform.OS === "web"
+  ? "http://localhost:3099/v2"
+  : "https://api-free.deepl.com/v2";
 
 export type TranslationDirection = "ar_to_en" | "en_to_ar";
 
@@ -16,7 +22,7 @@ export async function translate(
   if (!text.trim()) throw new Error("Empty input");
 
   if (!DEEPL_API_KEY) {
-    throw new Error("DeepL API key not configured. Add DEEPL_API_KEY in Replit Secrets.");
+    throw new Error("DeepL API key not configured. Add EXPO_PUBLIC_DEEPL_API_KEY in .env file.");
   }
 
   const sourceLang = direction === "ar_to_en" ? "AR" : "EN";

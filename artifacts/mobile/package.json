@@ -55,5 +55,7 @@
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "expo-speech": "^55.0.13"
+  }
 }

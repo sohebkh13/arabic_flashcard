@@ -16,15 +16,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
+import { ListenButton } from "@/components/ListenButton";
+
 export default function CreateCardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ arabic?: string; english?: string; deckId?: string }>();
-  const { decks, createCard } = useApp();
+  const { decks, createCard, createDeck } = useApp();
 
   const [arabic, setArabic] = useState(params.arabic || "");
   const [english, setEnglish] = useState(params.english || "");
+  const [newDeckName, setNewDeckName] = useState("");
   const [context, setContext] = useState("");
   const [grammarNotes, setGrammarNotes] = useState("");
   const [dialect, setDialect] = useState<"MSA" | "Egyptian">("MSA");
@@ -81,7 +84,10 @@ export default function CreateCardScreen() {
         bottomOffset={24}
       >
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>Arabic Word *</Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Arabic Word *</Text>
+            <ListenButton text={arabic} language="ar" size={16} />
+          </View>
           <TextInput
             value={arabic}
             onChangeText={setArabic}
@@ -93,7 +99,10 @@ export default function CreateCardScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>English Translation *</Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>English Translation *</Text>
+            <ListenButton text={english} language="en" size={16} />
+          </View>
           <TextInput
             value={english}
             onChangeText={setEnglish}
@@ -154,11 +163,7 @@ export default function CreateCardScreen() {
 
         <View style={styles.field}>
           <Text style={[styles.label, { color: colors.mutedForeground }]}>Deck *</Text>
-          {decks.length === 0 ? (
-            <Text style={[styles.noDeckText, { color: colors.mutedForeground }]}>
-              No decks yet. Go back and create one first.
-            </Text>
-          ) : (
+          {decks.length > 0 && (
             <View style={styles.deckList}>
               {decks.map((deck) => (
                 <TouchableOpacity
@@ -183,6 +188,30 @@ export default function CreateCardScreen() {
               ))}
             </View>
           )}
+
+          <View style={[styles.newDeckRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <TextInput
+              value={newDeckName}
+              onChangeText={setNewDeckName}
+              placeholder="Or create new deck..."
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.newDeckInput, { color: colors.foreground }]}
+            />
+            {newDeckName.trim().length > 0 && (
+              <TouchableOpacity
+                onPress={async () => {
+                  const deck = await createDeck(newDeckName.trim(), dialect);
+                  setNewDeckName("");
+                  setSelectedDeckId(deck.id);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                style={[styles.createDeckBtn, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="plus" size={16} color={colors.primaryForeground} />
+                <Text style={[styles.createDeckBtnText, { color: colors.primaryForeground }]}>Create</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </KeyboardAwareScrollView>
     </View>
@@ -204,6 +233,7 @@ const styles = StyleSheet.create({
   saveText: { fontSize: 16, fontWeight: "700" },
   content: { padding: 20, gap: 20 },
   field: { gap: 8 },
+  labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 },
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   arabicInput: { fontSize: 22, textAlign: "right", writingDirection: "rtl", lineHeight: 34 },
@@ -224,4 +254,31 @@ const styles = StyleSheet.create({
   deckOptionText: { fontSize: 15, fontWeight: "600" },
   deckDialect: { fontSize: 12 },
   noDeckText: { fontSize: 14, lineHeight: 22 },
+  newDeckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  newDeckInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 6,
+  },
+  createDeckBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  createDeckBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });

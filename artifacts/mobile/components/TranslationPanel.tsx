@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { ArabicText } from "@/components/ArabicText";
+import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
 import { translate } from "@/lib/deepl";
 import { useColors } from "@/hooks/useColors";
@@ -127,8 +128,12 @@ export function TranslationPanel({
               <Feather name="x-circle" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
+          {inputText.length > 0 && (
+            <ListenButton text={inputText} language={isArabicMode ? "ar" : "en"} size={18} />
+          )}
           <MicButton
             size={38}
+            language={isArabicMode ? "ar" : "en"}
             onTranscription={(text) => setInputText(text)}
             onError={(err) => setError(err)}
           />
@@ -162,11 +167,16 @@ export function TranslationPanel({
       {/* Result */}
       {translation ? (
         <View style={[styles.resultBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          {!isArabicMode ? (
-            <ArabicText size="medium" color={colors.foreground}>{translation}</ArabicText>
-          ) : (
-            <Text style={[styles.resultText, { color: colors.foreground }]}>{translation}</Text>
-          )}
+          <View style={styles.resultRow}>
+            <View style={styles.resultTextWrap}>
+              {!isArabicMode ? (
+                <ArabicText size="medium" color={colors.foreground}>{translation}</ArabicText>
+              ) : (
+                <Text style={[styles.resultText, { color: colors.foreground }]}>{translation}</Text>
+              )}
+            </View>
+            <ListenButton text={translation} language={!isArabicMode ? "ar" : "en"} size={22} />
+          </View>
 
           {onSaveFlashcard ? (
             <TouchableOpacity
@@ -243,6 +253,8 @@ const styles = StyleSheet.create({
   },
   translateBtnText: { fontSize: 15, fontWeight: "600" },
   resultBox: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 14 },
+  resultRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  resultTextWrap: { flex: 1, paddingRight: 10 },
   resultText: { fontSize: 18, lineHeight: 28 },
   saveBtn: {
     borderRadius: 10,
