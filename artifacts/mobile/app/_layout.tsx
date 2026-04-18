@@ -21,10 +21,14 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-// On native (Expo Go), explicitly load the Feather icon font.
-// On web, the font is loaded via web/index.html @font-face CSS — no JS needed.
-if (Platform.OS !== "web") {
-  Feather.loadFont().catch(() => {});
+// Ensure icon glyphs are available on all platforms, including web.
+Feather.loadFont().catch(() => {});
+
+function KeyboardProviderCompat({ children }: { children: React.ReactNode }) {
+  if (Platform.OS === "web") {
+    return <>{children}</>;
+  }
+  return <KeyboardProvider>{children}</KeyboardProvider>;
 }
 
 export default function RootLayout() {
@@ -50,7 +54,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
+            <KeyboardProviderCompat>
               <AppProvider>
                 <Stack
                   screenOptions={{
@@ -67,7 +71,7 @@ export default function RootLayout() {
                   <Stack.Screen name="card/[id]" options={{ headerShown: false, presentation: "card" }} />
                 </Stack>
               </AppProvider>
-            </KeyboardProvider>
+            </KeyboardProviderCompat>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>

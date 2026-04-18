@@ -11,10 +11,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 import { ListenButton } from "@/components/ListenButton";
 
@@ -76,7 +76,7 @@ export default function CreateCardScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollViewCompat
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 40 }]}
         keyboardShouldPersistTaps="handled"
@@ -213,7 +213,7 @@ export default function CreateCardScreen() {
             )}
           </View>
         </View>
-      </KeyboardAwareScrollView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }

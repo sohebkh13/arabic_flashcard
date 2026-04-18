@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -45,6 +46,17 @@ export default function DeckScreen() {
   }
 
   async function handleDelete() {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        `Delete "${deck!.name}" and all its cards? This cannot be undone.`
+      );
+      if (confirmed) {
+        await removeDeck(deck!.id);
+        router.back();
+      }
+      return;
+    }
+
     Alert.alert(
       "Delete Deck",
       `Delete "${deck!.name}" and all its cards? This cannot be undone.`,
@@ -70,6 +82,14 @@ export default function DeckScreen() {
   }
 
   async function handleDeleteCard(card: Flashcard) {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(`Delete "${card.arabic}"?`);
+      if (confirmed) {
+        await removeCard(card.id);
+      }
+      return;
+    }
+
     Alert.alert("Delete Card", `Delete "${card.arabic}"?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => removeCard(card.id) },
@@ -143,10 +163,9 @@ export default function DeckScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <Pressable
             style={[styles.cardItem, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => router.push({ pathname: "/card/[id]", params: { id: item.id } })}
-            activeOpacity={0.8}
           >
             <View style={styles.cardMain}>
               <Text style={[styles.arabicWord, { color: colors.foreground }]} numberOfLines={1}>
@@ -156,14 +175,17 @@ export default function DeckScreen() {
                 {item.english}
               </Text>
             </View>
-            <TouchableOpacity
+            <Pressable
               style={styles.deleteCardBtn}
-              onPress={() => handleDeleteCard(item)}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDeleteCard(item);
+              }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Feather name="trash-2" size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          </TouchableOpacity>
+            </Pressable>
+          </Pressable>
         )}
       />
 

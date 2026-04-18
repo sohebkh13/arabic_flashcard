@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { Deck } from "@/lib/storage";
 
@@ -30,10 +30,9 @@ export function DeckCard({ deck, cardCount, dueCount }: DeckCardProps) {
   }
 
   return (
-    <TouchableOpacity
+    <Pressable
       style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
       onPress={handlePress}
-      activeOpacity={0.8}
     >
       <View style={styles.cardInner}>
         <View style={styles.cardContent}>
@@ -73,15 +72,17 @@ export function DeckCard({ deck, cardCount, dueCount }: DeckCardProps) {
 
       {/* Review button */}
       {cardCount > 0 && (
-        <TouchableOpacity
+        <Pressable
           style={[
             styles.reviewBtn,
             dueCount > 0
               ? { backgroundColor: colors.primary }
               : { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border },
           ]}
-          onPress={handleReview}
-          activeOpacity={0.75}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleReview();
+          }}
         >
           <Feather
             name="zap"
@@ -96,9 +97,9 @@ export function DeckCard({ deck, cardCount, dueCount }: DeckCardProps) {
           >
             {dueCount > 0 ? `Review now · ${dueCount} due` : "Review all"}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 

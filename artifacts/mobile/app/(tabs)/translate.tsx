@@ -2,15 +2,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TranslationPanel } from "@/components/TranslationPanel";
 import { useColors } from "@/hooks/useColors";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 export default function TranslateScreen() {
   const colors = useColors();
@@ -35,7 +34,7 @@ export default function TranslateScreen() {
           Tap the swap button to change direction
         </Text>
       </View>
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollViewCompat
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
         keyboardShouldPersistTaps="handled"
@@ -46,7 +45,7 @@ export default function TranslateScreen() {
           initialText={initialText}
           onSaveFlashcard={handleSave}
         />
-      </KeyboardAwareScrollView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }

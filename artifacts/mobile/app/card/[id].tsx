@@ -12,9 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArabicText } from "@/components/ArabicText";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ListenButton } from "@/components/ListenButton";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -103,7 +103,7 @@ export default function CardDetailScreen() {
         </View>
       </View>
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollViewCompat
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}
         showsVerticalScrollIndicator={false}
@@ -211,7 +211,7 @@ export default function CardDetailScreen() {
             </View>
           </>
         )}
-      </KeyboardAwareScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       <Modal visible={moveModal} transparent animationType="slide" onRequestClose={() => setMoveModal(false)}>
         <View style={styles.modalOverlay}>
