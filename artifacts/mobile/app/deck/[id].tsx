@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CopyButton } from "@/components/CopyButton";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { Flashcard } from "@/lib/storage";
@@ -103,9 +104,12 @@ export default function DeckScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.deckName, { color: colors.foreground }]} numberOfLines={1}>
-          {deck.name}
-        </Text>
+        <View style={styles.deckNameRow}>
+          <Text style={[styles.deckName, { color: colors.foreground }]} numberOfLines={1}>
+            {deck.name}
+          </Text>
+          <CopyButton text={deck.name} size={15} />
+        </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
             onPress={() => { setEditName(deck.name); setEditModal(true); }}
@@ -168,12 +172,18 @@ export default function DeckScreen() {
             onPress={() => router.push({ pathname: "/card/[id]", params: { id: item.id } })}
           >
             <View style={styles.cardMain}>
-              <Text style={[styles.arabicWord, { color: colors.foreground }]} numberOfLines={1}>
-                {item.arabic}
-              </Text>
-              <Text style={[styles.englishWord, { color: colors.mutedForeground }]} numberOfLines={1}>
-                {item.english}
-              </Text>
+              <View style={styles.wordRow}>
+                <Text style={[styles.arabicWord, { color: colors.foreground }]} numberOfLines={1}>
+                  {item.arabic}
+                </Text>
+                <CopyButton text={item.arabic} size={14} />
+              </View>
+              <View style={styles.wordRow}>
+                <Text style={[styles.englishWord, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {item.english}
+                </Text>
+                <CopyButton text={item.english} size={14} />
+              </View>
             </View>
             <Pressable
               style={styles.deleteCardBtn}
@@ -250,6 +260,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backBtn: { padding: 2 },
+  deckNameRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   deckName: { flex: 1, fontSize: 18, fontWeight: "700" },
   headerActions: { flexDirection: "row", gap: 18 },
   statsRow: {
@@ -280,6 +291,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cardMain: { flex: 1, gap: 4 },
+  wordRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   arabicWord: { fontSize: 20, textAlign: "right", writingDirection: "rtl" },
   englishWord: { fontSize: 13 },
   deleteCardBtn: { padding: 4 },

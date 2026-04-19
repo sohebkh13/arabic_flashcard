@@ -62,6 +62,23 @@ export function detectDirection(text: string): TranslationDirection {
   return /[\u0600-\u06FF]/.test(text) ? "ar_to_en" : "en_to_ar";
 }
 
+export function isLikelyRomanizedArabic(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+  const hasArabic = /[\u0600-\u06FF]/.test(value);
+  const hasLatin = /[a-z]/i.test(value);
+  return !hasArabic && hasLatin;
+}
+
+export async function convertRomanizedToArabic(text: string): Promise<string> {
+  const value = text.trim();
+  if (!value) return value;
+  if (!isLikelyRomanizedArabic(value)) return value;
+
+  const result = await translate(value, "en_to_ar");
+  return result.translatedText;
+}
+
 export async function detectAndTranslate(text: string): Promise<TranslationResult & { direction: TranslationDirection }> {
   const direction = detectDirection(text);
   const result = await translate(text, direction);

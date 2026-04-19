@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -10,9 +10,10 @@ import {
   View,
 } from "react-native";
 import { ArabicText } from "@/components/ArabicText";
+import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
-import { translate } from "@/lib/deepl";
+import { convertRomanizedToArabic, isLikelyRomanizedArabic, translate } from "@/lib/deepl";
 import { useColors } from "@/hooks/useColors";
 
 interface TranslationPanelProps {
@@ -31,6 +32,7 @@ export function TranslationPanel({
   const [translation, setTranslation] = useState("");
   const [direction, setDirection] = useState<"ar_to_en" | "en_to_ar">(initialDirection);
   const [loading, setLoading] = useState(false);
+  const [normalizingArabic, setNormalizingArabic] = useState(false);
   const [error, setError] = useState("");
 
   const isArabicMode = direction === "ar_to_en";
@@ -63,13 +65,56 @@ export function TranslationPanel({
     setLoading(true);
     setError("");
     try {
-      const result = await translate(inputText.trim(), direction);
+      let sourceText = inputText.trim();
+      if (isArabicMode && isLikelyRomanizedArabic(sourceText)) {
+        setNormalizingArabic(true);
+        sourceText = await convertRomanizedToArabic(sourceText);
+        setInputText(sourceText);
+      }
+
+      const result = await translate(sourceText, direction);
       setTranslation(result.translatedText);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: unknown) {
       setError((e as Error).message || "Translation failed");
     } finally {
+      setNormalizingArabic(false);
       setLoading(false);
+    }
+  }
+
+  async function handleNormalizeArabicInput() {
+    if (!isArabicMode || !isLikelyRomanizedArabic(inputText)) return;
+    setNormalizingArabic(true);
+    setError("");
+    try {
+      const normalized = await convertRomanizedToArabic(inputText);
+      setInputText(normalized);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: unknown) {
+      setError((e as Error).message || "Could not convert to Arabic script");
+    } finally {
+      setNormalizingArabic(false);
+    }
+  }
+
+  async function handleArabicTranscription(text: string) {
+    if (!text.trim()) return;
+    setError("");
+    if (!isArabicMode || !isLikelyRomanizedArabic(text)) {
+      setInputText(text);
+      return;
+    }
+
+    setNormalizingArabic(true);
+    try {
+      const normalized = await convertRomanizedToArabic(text);
+      setInputText(normalized);
+    } catch {
+      setInputText(text);
+      setError("Voice text captured. Tap convert to change transliteration into Arabic script.");
+    } finally {
+      setNormalizingArabic(false);
     }
   }
 
@@ -128,13 +173,34 @@ export function TranslationPanel({
               <Feather name="x-circle" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
+          {inputText.length > 0 && <CopyButton text={inputText} size={18} />}
           {inputText.length > 0 && (
             <ListenButton text={inputText} language={isArabicMode ? "ar" : "en"} size={18} />
+          )}
+          {isArabicMode && isLikelyRomanizedArabic(inputText) && (
+            <TouchableOpacity
+              onPress={handleNormalizeArabicInput}
+              style={styles.clearBtn}
+              disabled={normalizingArabic}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {normalizingArabic ? (
+                <ActivityIndicator size="small" color={colors.mutedForeground} />
+              ) : (
+                <Feather name="type" size={17} color={colors.mutedForeground} />
+              )}
+            </TouchableOpacity>
           )}
           <MicButton
             size={38}
             language={isArabicMode ? "ar" : "en"}
-            onTranscription={(text) => setInputText(text)}
+            onTranscription={(text) => {
+              if (isArabicMode) {
+                handleArabicTranscription(text);
+              } else {
+                setInputText(text);
+              }
+            }}
             onError={(err) => setError(err)}
           />
         </View>
@@ -148,13 +214,13 @@ export function TranslationPanel({
       <TouchableOpacity
         style={[
           styles.translateBtn,
-          { backgroundColor: colors.primary, opacity: loading || !inputText.trim() ? 0.6 : 1 },
+          { backgroundColor: colors.primary, opacity: loading || normalizingArabic || !inputText.trim() ? 0.6 : 1 },
         ]}
         onPress={handleTranslate}
-        disabled={loading || !inputText.trim()}
+        disabled={loading || normalizingArabic || !inputText.trim()}
         activeOpacity={0.8}
       >
-        {loading ? (
+        {loading || normalizingArabic ? (
           <ActivityIndicator color={colors.primaryForeground} />
         ) : (
           <>
@@ -175,7 +241,10 @@ export function TranslationPanel({
                 <Text style={[styles.resultText, { color: colors.foreground }]}>{translation}</Text>
               )}
             </View>
-            <ListenButton text={translation} language={!isArabicMode ? "ar" : "en"} size={22} />
+            <View style={styles.resultActions}>
+              <CopyButton text={translation} size={18} />
+              <ListenButton text={translation} language={!isArabicMode ? "ar" : "en"} size={22} />
+            </View>
           </View>
 
           {onSaveFlashcard ? (
@@ -255,6 +324,7 @@ const styles = StyleSheet.create({
   resultBox: { borderRadius: 12, borderWidth: 1, padding: 16, gap: 14 },
   resultRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   resultTextWrap: { flex: 1, paddingRight: 10 },
+  resultActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   resultText: { fontSize: 18, lineHeight: 28 },
   saveBtn: {
     borderRadius: 10,

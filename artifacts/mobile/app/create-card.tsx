@@ -15,8 +15,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { convertRomanizedToArabic, isLikelyRomanizedArabic } from "@/lib/deepl";
 
+import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
+import { MicButton } from "@/components/MicButton";
 
 export default function CreateCardScreen() {
   const colors = useColors();
@@ -33,6 +36,8 @@ export default function CreateCardScreen() {
   const [dialect, setDialect] = useState<"MSA" | "Egyptian">("MSA");
   const [selectedDeckId, setSelectedDeckId] = useState(params.deckId || (decks[0]?.id ?? ""));
   const [saving, setSaving] = useState(false);
+  const [normalizingArabic, setNormalizingArabic] = useState(false);
+  const [micError, setMicError] = useState("");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -41,8 +46,14 @@ export default function CreateCardScreen() {
     if (!arabic.trim() || !english.trim() || !selectedDeckId) return;
     setSaving(true);
     try {
+      let arabicValue = arabic.trim();
+      if (isLikelyRomanizedArabic(arabicValue)) {
+        arabicValue = await convertRomanizedToArabic(arabicValue);
+        setArabic(arabicValue);
+      }
+
       await createCard({
-        arabic: arabic.trim(),
+        arabic: arabicValue,
         english: english.trim(),
         context: context.trim(),
         grammarNotes: grammarNotes.trim(),
@@ -53,6 +64,40 @@ export default function CreateCardScreen() {
       router.back();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleNormalizeArabicInput() {
+    if (!isLikelyRomanizedArabic(arabic)) return;
+    setNormalizingArabic(true);
+    setMicError("");
+    try {
+      const normalized = await convertRomanizedToArabic(arabic);
+      setArabic(normalized);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: unknown) {
+      setMicError((e as Error).message || "Could not convert to Arabic script");
+    } finally {
+      setNormalizingArabic(false);
+    }
+  }
+
+  async function handleArabicMic(text: string) {
+    setMicError("");
+    if (!isLikelyRomanizedArabic(text)) {
+      setArabic(text);
+      return;
+    }
+
+    setNormalizingArabic(true);
+    try {
+      const normalized = await convertRomanizedToArabic(text);
+      setArabic(normalized);
+    } catch {
+      setArabic(text);
+      setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
+    } finally {
+      setNormalizingArabic(false);
     }
   }
 
@@ -86,7 +131,29 @@ export default function CreateCardScreen() {
         <View style={styles.field}>
           <View style={styles.labelRow}>
             <Text style={[styles.label, { color: colors.mutedForeground }]}>Arabic Word *</Text>
-            <ListenButton text={arabic} language="ar" size={16} />
+            <View style={styles.labelActions}>
+              <CopyButton text={arabic} size={15} />
+              <ListenButton text={arabic} language="ar" size={16} />
+              {isLikelyRomanizedArabic(arabic) && (
+                <TouchableOpacity
+                  onPress={handleNormalizeArabicInput}
+                  style={styles.iconBtn}
+                  disabled={normalizingArabic}
+                >
+                  {normalizingArabic ? (
+                    <ActivityIndicator size="small" color={colors.mutedForeground} />
+                  ) : (
+                    <Feather name="type" size={16} color={colors.mutedForeground} />
+                  )}
+                </TouchableOpacity>
+              )}
+              <MicButton
+                size={28}
+                language="ar"
+                onTranscription={handleArabicMic}
+                onError={(err) => setMicError(err)}
+              />
+            </View>
           </View>
           <TextInput
             value={arabic}
@@ -96,12 +163,27 @@ export default function CreateCardScreen() {
             style={[styles.input, styles.arabicInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
             textAlign="right"
           />
+          {micError ? (
+            <Text style={[styles.micError, { color: colors.destructive }]}>{micError}</Text>
+          ) : null}
         </View>
 
         <View style={styles.field}>
           <View style={styles.labelRow}>
             <Text style={[styles.label, { color: colors.mutedForeground }]}>English Translation *</Text>
-            <ListenButton text={english} language="en" size={16} />
+            <View style={styles.labelActions}>
+              <CopyButton text={english} size={15} />
+              <ListenButton text={english} language="en" size={16} />
+              <MicButton
+                size={28}
+                language="en"
+                onTranscription={(text) => {
+                  setMicError("");
+                  setEnglish(text);
+                }}
+                onError={(err) => setMicError(err)}
+              />
+            </View>
           </View>
           <TextInput
             value={english}
@@ -234,7 +316,10 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 20 },
   field: { gap: 8 },
   labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  labelActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 },
+  iconBtn: { padding: 4 },
+  micError: { fontSize: 12, lineHeight: 18 },
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   arabicInput: { fontSize: 22, textAlign: "right", writingDirection: "rtl", lineHeight: 34 },
   multiInput: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },

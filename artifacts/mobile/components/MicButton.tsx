@@ -235,7 +235,7 @@ export function MicButton({ onTranscription, onError, size = 48, language = "ar"
     // Show a clear tip — users can still tap the mic key on their keyboard.
     Alert.alert(
       "Voice Input",
-      "On your phone, tap the mic icon on the keyboard for voice input — it uses Google's built-in speech recognition.\n\nFull Whisper support (no internet needed) comes with a native build.",
+      "On your phone, tap the mic icon on the keyboard for voice input — it uses the device dictation service.\n\nIf Arabic speech appears as Latin transliteration, use the type icon to convert it to Arabic script. Translation and save flows also auto-normalize likely transliteration to Arabic.\n\nFull in-app native speech recognition comes with a development/native build.",
       [{ text: "Got it" }]
     );
   }
