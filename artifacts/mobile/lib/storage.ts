@@ -5,6 +5,7 @@ export interface Deck {
   name: string;
   dialect: "MSA" | "Egyptian";
   createdAt: number;
+  updatedAt: number;
 }
 
 export interface Flashcard {
@@ -15,12 +16,27 @@ export interface Flashcard {
   context: string;
   grammarNotes: string;
   dialect: "MSA" | "Egyptian";
+  customFields: CustomField[];
   createdAt: number;
+  updatedAt: number;
   // SM-2 fields
   interval: number;
   repetitions: number;
   easeFactor: number;
   dueDate: number;
+}
+
+export interface CustomField {
+  id: string;
+  name: string;
+  value: string;
+}
+
+export interface BackupData {
+  version: 1;
+  exportedAt: number;
+  decks: Deck[];
+  cards: Flashcard[];
 }
 
 const DECKS_KEY = "arabic_flashcards_decks";
@@ -30,32 +46,86 @@ function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
+function normalizeCustomFields(raw: unknown): CustomField[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      const name = typeof item?.name === "string" ? item.name : "";
+      const value = typeof item?.value === "string" ? item.value : "";
+      return {
+        id: typeof item?.id === "string" ? item.id : generateId(),
+        name,
+        value,
+      };
+    })
+    .filter((field) => field.name.trim().length > 0 || field.value.trim().length > 0);
+}
+
+function normalizeDeck(raw: unknown): Deck {
+  const item = (raw || {}) as Partial<Deck>;
+  const createdAt = typeof item.createdAt === "number" ? item.createdAt : Date.now();
+  return {
+    id: typeof item.id === "string" ? item.id : generateId(),
+    name: typeof item.name === "string" ? item.name : "",
+    dialect: item.dialect === "Egyptian" ? "Egyptian" : "MSA",
+    createdAt,
+    updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : createdAt,
+  };
+}
+
+function normalizeCard(raw: unknown): Flashcard {
+  const item = (raw || {}) as Partial<Flashcard>;
+  const createdAt = typeof item.createdAt === "number" ? item.createdAt : Date.now();
+  const now = Date.now();
+  return {
+    id: typeof item.id === "string" ? item.id : generateId(),
+    deckId: typeof item.deckId === "string" ? item.deckId : "",
+    arabic: typeof item.arabic === "string" ? item.arabic : "",
+    english: typeof item.english === "string" ? item.english : "",
+    context: typeof item.context === "string" ? item.context : "",
+    grammarNotes: typeof item.grammarNotes === "string" ? item.grammarNotes : "",
+    dialect: item.dialect === "Egyptian" ? "Egyptian" : "MSA",
+    customFields: normalizeCustomFields(item.customFields),
+    createdAt,
+    updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : createdAt,
+    interval: typeof item.interval === "number" ? item.interval : 0,
+    repetitions: typeof item.repetitions === "number" ? item.repetitions : 0,
+    easeFactor: typeof item.easeFactor === "number" ? item.easeFactor : 2.5,
+    dueDate: typeof item.dueDate === "number" ? item.dueDate : now,
+  };
+}
+
 export async function getDecks(): Promise<Deck[]> {
   try {
     const raw = await AsyncStorage.getItem(DECKS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => normalizeDeck(item));
   } catch {
     return [];
   }
 }
 
-export async function saveDeck(deck: Omit<Deck, "id" | "createdAt">): Promise<Deck> {
+export async function saveDeck(deck: Omit<Deck, "id" | "createdAt" | "updatedAt">): Promise<Deck> {
   const decks = await getDecks();
+  const now = Date.now();
   const newDeck: Deck = {
     ...deck,
     id: generateId(),
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
   };
   decks.push(newDeck);
   await AsyncStorage.setItem(DECKS_KEY, JSON.stringify(decks));
   return newDeck;
 }
 
-export async function updateDeck(id: string, updates: Partial<Omit<Deck, "id" | "createdAt">>): Promise<void> {
+export async function updateDeck(id: string, updates: Partial<Omit<Deck, "id" | "createdAt" | "updatedAt">>): Promise<void> {
   const decks = await getDecks();
   const idx = decks.findIndex((d) => d.id === id);
   if (idx >= 0) {
-    decks[idx] = { ...decks[idx], ...updates };
+    decks[idx] = { ...decks[idx], ...updates, updatedAt: Date.now() };
     await AsyncStorage.setItem(DECKS_KEY, JSON.stringify(decks));
   }
 }
@@ -73,7 +143,10 @@ export async function deleteDeck(id: string): Promise<void> {
 export async function getCards(): Promise<Flashcard[]> {
   try {
     const raw = await AsyncStorage.getItem(CARDS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => normalizeCard(item));
   } catch {
     return [];
   }
@@ -93,16 +166,19 @@ export async function getDueCards(deckId?: string): Promise<Flashcard[]> {
   });
 }
 
-export async function saveCard(card: Omit<Flashcard, "id" | "createdAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">): Promise<Flashcard> {
+export async function saveCard(card: Omit<Flashcard, "id" | "createdAt" | "updatedAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">): Promise<Flashcard> {
   const cards = await getCards();
+  const now = Date.now();
   const newCard: Flashcard = {
     ...card,
+    customFields: normalizeCustomFields(card.customFields),
     id: generateId(),
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
     interval: 0,
     repetitions: 0,
     easeFactor: 2.5,
-    dueDate: Date.now(),
+    dueDate: now,
   };
   cards.push(newCard);
   await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
@@ -113,7 +189,11 @@ export async function updateCard(id: string, updates: Partial<Flashcard>): Promi
   const cards = await getCards();
   const idx = cards.findIndex((c) => c.id === id);
   if (idx >= 0) {
-    cards[idx] = { ...cards[idx], ...updates };
+    const nextCard: Flashcard = { ...cards[idx], ...updates, updatedAt: Date.now() };
+    if ("customFields" in updates) {
+      nextCard.customFields = normalizeCustomFields(updates.customFields);
+    }
+    cards[idx] = nextCard;
     await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
   }
 }
@@ -134,7 +214,90 @@ export async function moveCard(cardId: string, targetDeckId: string): Promise<vo
       ...cards[idx],
       deckId: targetDeckId,
       dialect: targetDeck.dialect,
+      updatedAt: Date.now(),
     };
     await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
   }
+}
+
+export async function buildBackup(deckId?: string): Promise<BackupData> {
+  const decks = await getDecks();
+  const cards = await getCards();
+
+  if (!deckId) {
+    return {
+      version: 1,
+      exportedAt: Date.now(),
+      decks,
+      cards,
+    };
+  }
+
+  const selectedDeck = decks.find((deck) => deck.id === deckId);
+  if (!selectedDeck) {
+    return {
+      version: 1,
+      exportedAt: Date.now(),
+      decks: [],
+      cards: [],
+    };
+  }
+
+  return {
+    version: 1,
+    exportedAt: Date.now(),
+    decks: [selectedDeck],
+    cards: cards.filter((card) => card.deckId === deckId),
+  };
+}
+
+function normalizeBackupData(raw: unknown): BackupData {
+  const parsed = (raw || {}) as Partial<BackupData>;
+  return {
+    version: 1,
+    exportedAt: typeof parsed.exportedAt === "number" ? parsed.exportedAt : Date.now(),
+    decks: Array.isArray(parsed.decks) ? parsed.decks.map((deck) => normalizeDeck(deck)) : [],
+    cards: Array.isArray(parsed.cards) ? parsed.cards.map((card) => normalizeCard(card)) : [],
+  };
+}
+
+export async function importBackup(raw: unknown): Promise<{ importedDecks: number; importedCards: number }> {
+  const data = normalizeBackupData(raw);
+  if (data.decks.length === 0) {
+    return { importedDecks: 0, importedCards: 0 };
+  }
+
+  const currentDecks = await getDecks();
+  const currentCards = await getCards();
+
+  const deckIdMap = new Map<string, string>();
+  const importedDecks: Deck[] = data.decks.map((deck) => {
+    const newId = generateId();
+    deckIdMap.set(deck.id, newId);
+    return {
+      ...deck,
+      id: newId,
+      createdAt: deck.createdAt || Date.now(),
+      updatedAt: deck.updatedAt || deck.createdAt || Date.now(),
+    };
+  });
+
+  const importedCards: Flashcard[] = data.cards
+    .map((card) => {
+      const mappedDeckId = deckIdMap.get(card.deckId);
+      if (!mappedDeckId) return null;
+      return {
+        ...card,
+        id: generateId(),
+        deckId: mappedDeckId,
+        createdAt: card.createdAt || Date.now(),
+        updatedAt: card.updatedAt || card.createdAt || Date.now(),
+      };
+    })
+    .filter((card): card is Flashcard => Boolean(card));
+
+  await AsyncStorage.setItem(DECKS_KEY, JSON.stringify([...currentDecks, ...importedDecks]));
+  await AsyncStorage.setItem(CARDS_KEY, JSON.stringify([...currentCards, ...importedCards]));
+
+  return { importedDecks: importedDecks.length, importedCards: importedCards.length };
 }

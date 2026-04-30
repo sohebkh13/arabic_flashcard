@@ -505,6 +505,27 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
   console.log("Manifests updated");
 }
 
+function copyPwaAssets(staticBuild) {
+  console.log("Copying PWA assets...");
+
+  const pwaFiles = [
+    { src: "public/manifest.json", dest: "manifest.json" },
+    { src: "public/service-worker.js", dest: "service-worker.js" },
+  ];
+
+  for (const file of pwaFiles) {
+    const srcPath = path.join(projectRoot, file.src);
+    const destPath = path.join(staticBuild, file.dest);
+
+    if (fs.existsSync(srcPath)) {
+      fs.copyFileSync(srcPath, destPath);
+      console.log(`  ✓ Copied ${file.dest}`);
+    } else {
+      console.warn(`  ⚠ File not found: ${file.src}`);
+    }
+  }
+}
+
 async function main() {
   console.log("Building static Expo Go deployment...");
 
@@ -555,6 +576,9 @@ async function main() {
 
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
+
+  const staticBuild = path.join(projectRoot, "static-build");
+  copyPwaAssets(staticBuild);
 
   console.log("Build complete! Deploy to:", baseUrl);
 

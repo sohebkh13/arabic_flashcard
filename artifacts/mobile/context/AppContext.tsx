@@ -1,12 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
+  BackupData,
   Deck,
   Flashcard,
+  buildBackup,
   deleteCard,
   deleteDeck,
   getDueCards,
   getCards,
   getDecks,
+  importBackup,
   moveCard,
   saveCard,
   saveDeck,
@@ -23,10 +26,12 @@ interface AppContextValue {
   createDeck: (name: string, dialect: "MSA" | "Egyptian") => Promise<Deck>;
   editDeck: (id: string, name: string, dialect: "MSA" | "Egyptian") => Promise<void>;
   removeDeck: (id: string) => Promise<void>;
-  createCard: (card: Omit<Flashcard, "id" | "createdAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">) => Promise<Flashcard>;
+  createCard: (card: Omit<Flashcard, "id" | "createdAt" | "updatedAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">) => Promise<Flashcard>;
   editCard: (id: string, updates: Partial<Flashcard>) => Promise<void>;
   removeCard: (id: string) => Promise<void>;
   transferCard: (cardId: string, targetDeckId: string) => Promise<void>;
+  exportBackup: (deckId?: string) => Promise<BackupData>;
+  importBackupData: (raw: unknown) => Promise<{ importedDecks: number; importedCards: number }>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -73,7 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refreshAll();
   }, [refreshAll]);
 
-  const createCard = useCallback(async (card: Omit<Flashcard, "id" | "createdAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">) => {
+  const createCard = useCallback(async (card: Omit<Flashcard, "id" | "createdAt" | "updatedAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">) => {
     const newCard = await saveCard(card);
     await refreshAll();
     return newCard;
@@ -94,6 +99,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refreshAll();
   }, [refreshAll]);
 
+  const exportBackup = useCallback(async (deckId?: string) => {
+    return buildBackup(deckId);
+  }, []);
+
+  const importBackupData = useCallback(async (raw: unknown) => {
+    const result = await importBackup(raw);
+    await refreshAll();
+    return result;
+  }, [refreshAll]);
+
   return (
     <AppContext.Provider
       value={{
@@ -109,6 +124,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         editCard,
         removeCard,
         transferCard,
+        exportBackup,
+        importBackupData,
       }}
     >
       {children}

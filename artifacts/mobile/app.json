@@ -28,7 +28,10 @@
       "targetSdkVersion": 36
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/icon.png",
+      "publicUrl": "/",
+      "scope": "/",
+      "shortName": "Arabic Cards"
     },
     "plugins": [
       [

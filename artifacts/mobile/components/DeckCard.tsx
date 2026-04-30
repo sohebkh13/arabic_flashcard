@@ -10,9 +10,11 @@ interface DeckCardProps {
   deck: Deck;
   cardCount: number;
   dueCount: number;
+  addedLabel: string;
+  updatedLabel: string;
 }
 
-export function DeckCard({ deck, cardCount, dueCount }: DeckCardProps) {
+export function DeckCard({ deck, cardCount, dueCount, addedLabel, updatedLabel }: DeckCardProps) {
   const colors = useColors();
   const router = useRouter();
 
@@ -62,6 +64,11 @@ export function DeckCard({ deck, cardCount, dueCount }: DeckCardProps) {
                 <Text style={[styles.doneText, { color: colors.success || "#4caf7d" }]}>Up to date</Text>
               </View>
             )}
+          </View>
+
+          <View style={styles.metaRow}>
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Added {addedLabel}</Text>
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Updated {updatedLabel}</Text>
           </View>
         </View>
 
@@ -150,6 +157,16 @@ const styles = StyleSheet.create({
   },
   statText: {
     fontSize: 13,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  metaText: {
+    fontSize: 11,
+    fontWeight: "500",
   },
   dueBadge: {
     borderRadius: 6,

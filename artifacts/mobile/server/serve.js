@@ -100,7 +100,29 @@ function serveStaticFile(urlPath, res) {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   const content = fs.readFileSync(filePath);
-  res.writeHead(200, { "content-type": contentType });
+
+  // Set cache headers based on file type
+  let cacheControl = "public, max-age=31536000, immutable"; // 1 year for versioned assets
+  if (
+    urlPath.includes(".map") ||
+    urlPath === "/index.html" ||
+    urlPath === "/manifest.json" ||
+    urlPath === "/service-worker.js"
+  ) {
+    cacheControl = "public, max-age=0, must-revalidate"; // No cache for critical files
+  }
+
+  const headers = {
+    "content-type": contentType,
+    "cache-control": cacheControl,
+  };
+
+  // Add service worker specific headers
+  if (urlPath === "/service-worker.js") {
+    headers["service-worker-allowed"] = "/";
+  }
+
+  res.writeHead(200, headers);
   res.end(content);
 }
 

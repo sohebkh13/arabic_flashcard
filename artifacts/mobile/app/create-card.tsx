@@ -21,6 +21,20 @@ import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
 
+interface CustomFieldDraft {
+  id: string;
+  name: string;
+  value: string;
+}
+
+function createDraftField(): CustomFieldDraft {
+  return {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+    name: "",
+    value: "",
+  };
+}
+
 export default function CreateCardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -33,7 +47,7 @@ export default function CreateCardScreen() {
   const [newDeckName, setNewDeckName] = useState("");
   const [context, setContext] = useState("");
   const [grammarNotes, setGrammarNotes] = useState("");
-  const [dialect, setDialect] = useState<"MSA" | "Egyptian">("MSA");
+  const [customFields, setCustomFields] = useState<CustomFieldDraft[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState(params.deckId || (decks[0]?.id ?? ""));
   const [saving, setSaving] = useState(false);
   const [normalizingArabic, setNormalizingArabic] = useState(false);
@@ -46,18 +60,28 @@ export default function CreateCardScreen() {
     if (!arabic.trim() || !english.trim() || !selectedDeckId) return;
     setSaving(true);
     try {
+      const selectedDeck = decks.find((deck) => deck.id === selectedDeckId);
       let arabicValue = arabic.trim();
       if (isLikelyRomanizedArabic(arabicValue)) {
         arabicValue = await convertRomanizedToArabic(arabicValue);
         setArabic(arabicValue);
       }
 
+      const normalizedCustomFields = customFields
+        .map((field) => ({
+          id: field.id,
+          name: field.name.trim(),
+          value: field.value.trim(),
+        }))
+        .filter((field) => field.name.length > 0 && field.value.length > 0);
+
       await createCard({
         arabic: arabicValue,
         english: english.trim(),
         context: context.trim(),
         grammarNotes: grammarNotes.trim(),
-        dialect,
+        dialect: selectedDeck?.dialect || "MSA",
+        customFields: normalizedCustomFields,
         deckId: selectedDeckId,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -221,26 +245,60 @@ export default function CreateCardScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>Dialect</Text>
-          <View style={styles.row}>
-            {(["MSA", "Egyptian"] as const).map((d) => (
-              <TouchableOpacity
-                key={d}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: dialect === d ? colors.primary : colors.border,
-                    backgroundColor: dialect === d ? colors.primary + "22" : colors.card,
-                  },
-                ]}
-                onPress={() => setDialect(d)}
-              >
-                <Text style={[styles.chipText, { color: dialect === d ? colors.primary : colors.mutedForeground }]}>
-                  {d === "MSA" ? "Modern Standard" : "Egyptian"}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.dynamicHeaderRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Extra Fields</Text>
+            <TouchableOpacity
+              style={[styles.addFieldBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+              onPress={() => setCustomFields((prev) => [...prev, createDraftField()])}
+            >
+              <Feather name="plus" size={14} color={colors.foreground} />
+              <Text style={[styles.addFieldText, { color: colors.foreground }]}>Add field</Text>
+            </TouchableOpacity>
           </View>
+
+          {customFields.length === 0 ? (
+            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>Add custom fields to match imported deck structures.</Text>
+          ) : null}
+
+          {customFields.map((field, index) => (
+            <View key={field.id} style={[styles.customFieldBox, { borderColor: colors.border, backgroundColor: colors.card }]}> 
+              <View style={styles.customFieldTitleRow}>
+                <Text style={[styles.customFieldTitle, { color: colors.mutedForeground }]}>Field {index + 1}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setCustomFields((prev) => prev.filter((item) => item.id !== field.id));
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="trash-2" size={14} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+              <TextInput
+                value={field.name}
+                onChangeText={(text) => {
+                  setCustomFields((prev) =>
+                    prev.map((item) => (item.id === field.id ? { ...item, name: text } : item))
+                  );
+                }}
+                placeholder="Field name"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, styles.compactInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.foreground }]}
+              />
+              <TextInput
+                value={field.value}
+                onChangeText={(text) => {
+                  setCustomFields((prev) =>
+                    prev.map((item) => (item.id === field.id ? { ...item, value: text } : item))
+                  );
+                }}
+                placeholder="Field value"
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.foreground }]}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          ))}
         </View>
 
         <View style={styles.field}>
@@ -259,13 +317,11 @@ export default function CreateCardScreen() {
                   ]}
                   onPress={() => {
                     setSelectedDeckId(deck.id);
-                    setDialect(deck.dialect);
                   }}
                 >
                   <Text style={[styles.deckOptionText, { color: selectedDeckId === deck.id ? colors.primary : colors.foreground }]}>
                     {deck.name}
                   </Text>
-                  <Text style={[styles.deckDialect, { color: colors.mutedForeground }]}>{deck.dialect}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -282,7 +338,7 @@ export default function CreateCardScreen() {
             {newDeckName.trim().length > 0 && (
               <TouchableOpacity
                 onPress={async () => {
-                  const deck = await createDeck(newDeckName.trim(), dialect);
+                  const deck = await createDeck(newDeckName.trim(), "MSA");
                   setNewDeckName("");
                   setSelectedDeckId(deck.id);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -323,9 +379,22 @@ const styles = StyleSheet.create({
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   arabicInput: { fontSize: 22, textAlign: "right", writingDirection: "rtl", lineHeight: 34 },
   multiInput: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },
-  row: { flexDirection: "row", gap: 12 },
-  chip: { flex: 1, borderRadius: 10, borderWidth: 1.5, paddingVertical: 10, alignItems: "center" },
-  chipText: { fontSize: 13, fontWeight: "600" },
+  compactInput: { minHeight: 44 },
+  dynamicHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  addFieldBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addFieldText: { fontSize: 13, fontWeight: "600" },
+  helperText: { fontSize: 12, lineHeight: 18 },
+  customFieldBox: { borderRadius: 10, borderWidth: 1, padding: 10, gap: 8 },
+  customFieldTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  customFieldTitle: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   deckList: { gap: 8 },
   deckOption: {
     borderRadius: 10,
@@ -337,7 +406,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   deckOptionText: { fontSize: 15, fontWeight: "600" },
-  deckDialect: { fontSize: 12 },
   noDeckText: { fontSize: 14, lineHeight: 22 },
   newDeckRow: {
     flexDirection: "row",

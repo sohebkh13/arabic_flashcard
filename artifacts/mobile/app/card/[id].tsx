@@ -19,6 +19,20 @@ import { ListenButton } from "@/components/ListenButton";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
+interface CustomFieldDraft {
+  id: string;
+  name: string;
+  value: string;
+}
+
+function createDraftField(): CustomFieldDraft {
+  return {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+    name: "",
+    value: "",
+  };
+}
+
 export default function CardDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
@@ -33,6 +47,13 @@ export default function CardDetailScreen() {
   const [context, setContext] = useState(card?.context || "");
   const [grammarNotes, setGrammarNotes] = useState(card?.grammarNotes || "");
   const [dialect, setDialect] = useState<"MSA" | "Egyptian">(card?.dialect || "MSA");
+  const [customFields, setCustomFields] = useState<CustomFieldDraft[]>(
+    (card?.customFields || []).map((field) => ({
+      id: field.id,
+      name: field.name,
+      value: field.value,
+    }))
+  );
   const [moveModal, setMoveModal] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -50,7 +71,15 @@ export default function CardDetailScreen() {
   const nextReview = new Date(card.dueDate).toLocaleDateString();
 
   async function handleSave() {
-    await editCard(card!.id, { arabic, english, context, grammarNotes, dialect });
+    const normalizedCustomFields = customFields
+      .map((field) => ({
+        id: field.id,
+        name: field.name.trim(),
+        value: field.value.trim(),
+      }))
+      .filter((field) => field.name.length > 0 && field.value.length > 0);
+
+    await editCard(card!.id, { arabic, english, context, grammarNotes, dialect, customFields: normalizedCustomFields });
     setEditing(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
@@ -147,6 +176,51 @@ export default function CardDetailScreen() {
                 multiline
               />
             </View>
+            <View style={styles.field}>
+              <View style={styles.dynamicHeaderRow}>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>Extra Fields</Text>
+                <TouchableOpacity
+                  style={[styles.addFieldBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                  onPress={() => setCustomFields((prev) => [...prev, createDraftField()])}
+                >
+                  <Feather name="plus" size={14} color={colors.foreground} />
+                  <Text style={[styles.addFieldText, { color: colors.foreground }]}>Add field</Text>
+                </TouchableOpacity>
+              </View>
+
+              {customFields.map((field, index) => (
+                <View key={field.id} style={[styles.customFieldBox, { borderColor: colors.border, backgroundColor: colors.card }]}> 
+                  <View style={styles.customFieldTitleRow}>
+                    <Text style={[styles.customFieldTitle, { color: colors.mutedForeground }]}>Field {index + 1}</Text>
+                    <TouchableOpacity
+                      onPress={() => setCustomFields((prev) => prev.filter((item) => item.id !== field.id))}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="trash-2" size={14} color={colors.mutedForeground} />
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    value={field.name}
+                    onChangeText={(text) => {
+                      setCustomFields((prev) => prev.map((item) => (item.id === field.id ? { ...item, name: text } : item)));
+                    }}
+                    style={[styles.input, styles.compactInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.foreground }]}
+                    placeholder="Field name"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                  <TextInput
+                    value={field.value}
+                    onChangeText={(text) => {
+                      setCustomFields((prev) => prev.map((item) => (item.id === field.id ? { ...item, value: text } : item)));
+                    }}
+                    style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.background, color: colors.foreground }]}
+                    placeholder="Field value"
+                    placeholderTextColor={colors.mutedForeground}
+                    multiline
+                  />
+                </View>
+              ))}
+            </View>
             <View style={styles.dialectRow}>
               {(["MSA", "Egyptian"] as const).map((d) => (
                 <TouchableOpacity
@@ -190,6 +264,12 @@ export default function CardDetailScreen() {
                   <Text style={[styles.infoValue, { color: colors.foreground }]}>{card.grammarNotes}</Text>
                 </View>
               ) : null}
+              {card.customFields.map((field) => (
+                <View key={field.id} style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{field.name}</Text>
+                  <Text style={[styles.infoValue, { color: colors.foreground }]}>{field.value}</Text>
+                </View>
+              ))}
             </View>
             <View style={[styles.metaCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.metaRow}>
@@ -266,6 +346,21 @@ const styles = StyleSheet.create({
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   arabicInput: { fontSize: 22, textAlign: "right", writingDirection: "rtl", lineHeight: 34 },
   multi: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },
+  compactInput: { minHeight: 44 },
+  dynamicHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  addFieldBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addFieldText: { fontSize: 13, fontWeight: "600" },
+  customFieldBox: { borderRadius: 10, borderWidth: 1, padding: 10, gap: 8 },
+  customFieldTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  customFieldTitle: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   dialectRow: { flexDirection: "row", gap: 12 },
   chip: { flex: 1, borderRadius: 10, borderWidth: 1.5, paddingVertical: 10, alignItems: "center" },
   chipText: { fontSize: 14, fontWeight: "600" },

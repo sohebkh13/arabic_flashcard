@@ -220,6 +220,12 @@ export default function ReviewScreen() {
                   <Text style={[styles.notesText, { color: colors.foreground }]}>{current.context}</Text>
                 </View>
               ) : null}
+              {(current?.customFields || []).map((field) => (
+                <View key={field.id} style={[styles.notesBox, { backgroundColor: colors.secondary }]}> 
+                  <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>{field.name}</Text>
+                  <Text style={[styles.notesText, { color: colors.foreground }]}>{field.value}</Text>
+                </View>
+              ))}
             </Animated.View>
           )}
         </TouchableOpacity>
