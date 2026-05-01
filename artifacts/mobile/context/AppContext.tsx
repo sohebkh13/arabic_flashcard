@@ -1,25 +1,33 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
   BackupData,
+  Collection,
   Deck,
   Flashcard,
+  addDeckToCollection,
   buildBackup,
   deleteCard,
+  deleteCollection,
   deleteDeck,
   getDueCards,
   getCards,
+  getCollections,
   getDecks,
   importBackup,
   moveCard,
+  removeDeckFromCollection,
   saveCard,
+  saveCollection,
   saveDeck,
   updateCard,
+  updateCollection,
   updateDeck,
 } from "@/lib/storage";
 
 interface AppContextValue {
   decks: Deck[];
   cards: Flashcard[];
+  collections: Collection[];
   dueByDeck: Record<string, number>;
   loading: boolean;
   refreshAll: () => Promise<void>;
@@ -30,8 +38,13 @@ interface AppContextValue {
   editCard: (id: string, updates: Partial<Flashcard>) => Promise<void>;
   removeCard: (id: string) => Promise<void>;
   transferCard: (cardId: string, targetDeckId: string) => Promise<void>;
-  exportBackup: (deckId?: string) => Promise<BackupData>;
-  importBackupData: (raw: unknown) => Promise<{ importedDecks: number; importedCards: number }>;
+  createCollection: (name: string) => Promise<Collection>;
+  editCollection: (id: string, name: string) => Promise<void>;
+  removeCollection: (id: string) => Promise<void>;
+  addDeckToCollectionMut: (collectionId: string, deckId: string) => Promise<void>;
+  removeDeckFromCollectionMut: (collectionId: string, deckId: string) => Promise<void>;
+  exportBackup: (deckId?: string, collectionId?: string) => Promise<BackupData>;
+  importBackupData: (raw: unknown) => Promise<{ importedDecks: number; importedCards: number; importedCollections: number }>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -39,17 +52,20 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [cards, setCards] = useState<Flashcard[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [dueByDeck, setDueByDeck] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const refreshAll = useCallback(async () => {
-    const [d, c, due] = await Promise.all([
+    const [d, c, col, due] = await Promise.all([
       getDecks(),
       getCards(),
+      getCollections(),
       getDueCards(),
     ]);
     setDecks(d);
     setCards(c);
+    setCollections(col);
     const map: Record<string, number> = {};
     for (const card of due) {
       map[card.deckId] = (map[card.deckId] || 0) + 1;
@@ -99,8 +115,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refreshAll();
   }, [refreshAll]);
 
-  const exportBackup = useCallback(async (deckId?: string) => {
-    return buildBackup(deckId);
+  const exportBackup = useCallback(async (deckId?: string, collectionId?: string) => {
+    return buildBackup(deckId, collectionId);
   }, []);
 
   const importBackupData = useCallback(async (raw: unknown) => {
@@ -109,11 +125,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [refreshAll]);
 
+  const createCollection = useCallback(async (name: string) => {
+    const collection = await saveCollection({ name, deckIds: [] });
+    await refreshAll();
+    return collection;
+  }, [refreshAll]);
+
+  const editCollection = useCallback(async (id: string, name: string) => {
+    await updateCollection(id, { name });
+    await refreshAll();
+  }, [refreshAll]);
+
+  const removeCollection = useCallback(async (id: string) => {
+    await deleteCollection(id);
+    await refreshAll();
+  }, [refreshAll]);
+
+  const addDeckToCollectionMut = useCallback(async (collectionId: string, deckId: string) => {
+    await addDeckToCollection(collectionId, deckId);
+    await refreshAll();
+  }, [refreshAll]);
+
+  const removeDeckFromCollectionMut = useCallback(async (collectionId: string, deckId: string) => {
+    await removeDeckFromCollection(collectionId, deckId);
+    await refreshAll();
+  }, [refreshAll]);
+
   return (
     <AppContext.Provider
       value={{
         decks,
         cards,
+        collections,
         dueByDeck,
         loading,
         refreshAll,
@@ -124,6 +167,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         editCard,
         removeCard,
         transferCard,
+        createCollection,
+        editCollection,
+        removeCollection,
+        addDeckToCollectionMut,
+        removeDeckFromCollectionMut,
         exportBackup,
         importBackupData,
       }}

@@ -7,9 +7,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TranslationPanel } from "@/components/TranslationPanel";
 import { useColors } from "@/hooks/useColors";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { Header } from "@/components/Header";
 
 export default function TranslateScreen() {
   const colors = useColors();
@@ -28,10 +30,17 @@ export default function TranslateScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <Header 
+        onProfilePress={() => router.push("/profile")}
+        onLogoPress={() => {
+          AsyncStorage.setItem("tarjim_seen_landing", "false").catch(() => {});
+          router.push("/(tabs)");
+        }}
+      />
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Translate</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Tap the swap button to change direction
+          Live translation updates as you type, with transliteration for Arabic results
         </Text>
       </View>
       <KeyboardAwareScrollViewCompat

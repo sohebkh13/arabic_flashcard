@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
   Alert,
@@ -17,8 +18,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DeckCard } from "@/components/DeckCard";
+import { CollectionCard } from "@/components/CollectionCard";
 import { FloatingBubble } from "@/components/FloatingBubble";
+import { Header } from "@/components/Header";
+import { AnimatedWelcomeMessage } from "@/components/AnimatedWelcomeMessage";
 import { useApp } from "@/context/AppContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import {
   buildBackupFilename,
@@ -43,24 +48,71 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { decks, cards, dueByDeck, loading, createDeck, exportBackup, importBackupData } = useApp();
+  const { decks, cards, collections, dueByDeck, loading, createDeck, createCollection, exportBackup, importBackupData } = useApp();
+
+  const [seenLanding, setSeenLanding] = useState<boolean | null>(null);
+
+  // Read landing flag on mount
+  React.useEffect(() => {
+    AsyncStorage.getItem("tarjim_seen_landing")
+      .then((v) => setSeenLanding(v === "true"))
+      .catch(() => setSeenLanding(false));
+  }, []);
+
+  // Re-read landing flag whenever this screen regains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      let mounted = true;
+      AsyncStorage.getItem("tarjim_seen_landing")
+        .then((v) => {
+          if (!mounted) return;
+          setSeenLanding(v === "true");
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setSeenLanding(false);
+        });
+      return () => {
+        mounted = false;
+      };
+    }, [])
+  );
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newDeckName, setNewDeckName] = useState("");
+  const [collectionModalVisible, setCollectionModalVisible] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState("");
   const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [exportMode, setExportMode] = useState<"deck" | "collection">("deck");
   const [selectedExportDeckId, setSelectedExportDeckId] = useState<string>(ALL_DECKS_EXPORT_ID);
+  const [selectedExportCollectionId, setSelectedExportCollectionId] = useState<string>("");
   const [selectedExportFormat, setSelectedExportFormat] = useState<ExportFormat>("json");
   const [creating, setCreating] = useState(false);
   const [busyTransfer, setBusyTransfer] = useState(false);
 
   const totalDue = Object.values(dueByDeck).reduce((a, b) => a + b, 0);
+  const totalCards = cards.length;
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
+
+  // Get decks not in any collection
+  const deckIdsInCollections = new Set(collections.flatMap((c) => c.deckIds));
+  const independentDecks = decks.filter((d) => !deckIdsInCollections.has(d.id));
 
   function openModal() {
     setNewDeckName("");
     setModalVisible(true);
+    // Mark landing as seen when user starts creating a deck
+    AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
+    setSeenLanding(true);
+  }
+
+  function openCollectionModal() {
+    setNewCollectionName("");
+    setCollectionModalVisible(true);
+    // Mark landing as seen when user starts creating a collection
+    AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
+    setSeenLanding(true);
   }
 
   async function handleCreateDeck() {
@@ -73,7 +125,18 @@ export default function HomeScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
+  async function handleCreateCollection() {
+    if (!newCollectionName.trim()) return;
+    setCreating(true);
+    await createCollection(newCollectionName.trim());
+    setCreating(false);
+    setCollectionModalVisible(false);
+    setNewCollectionName("");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   function openExportModal() {
+    setExportMode("deck");
     setSelectedExportDeckId(ALL_DECKS_EXPORT_ID);
     setSelectedExportFormat("json");
     setExportModalVisible(true);
@@ -82,9 +145,23 @@ export default function HomeScreen() {
   async function handleConfirmExport() {
     try {
       setBusyTransfer(true);
-      const deckId = selectedExportDeckId === ALL_DECKS_EXPORT_ID ? undefined : selectedExportDeckId;
-      const payload = await exportBackup(deckId);
-      const selectedDeck = deckId ? decks.find((deck) => deck.id === deckId) : undefined;
+      let payload;
+      let filename;
+
+      if (exportMode === "collection") {
+        if (!selectedExportCollectionId) {
+          Alert.alert("Error", "Please select a collection");
+          return;
+        }
+        payload = await exportBackup(undefined, selectedExportCollectionId);
+        const selectedCollection = collections.find((c) => c.id === selectedExportCollectionId);
+        filename = buildBackupFilename("collection", selectedExportFormat, selectedCollection?.name);
+      } else {
+        const deckId = selectedExportDeckId === ALL_DECKS_EXPORT_ID ? undefined : selectedExportDeckId;
+        payload = await exportBackup(deckId);
+        const selectedDeck = deckId ? decks.find((deck) => deck.id === deckId) : undefined;
+        filename = buildBackupFilename(deckId ? "deck" : "all", selectedExportFormat, selectedDeck?.name);
+      }
 
       let content = JSON.stringify(payload, null, 2);
       if (selectedExportFormat === "csv") {
@@ -93,11 +170,6 @@ export default function HomeScreen() {
         content = backupToTxt(payload);
       }
 
-      const filename = buildBackupFilename(
-        deckId ? "deck" : "all",
-        selectedExportFormat,
-        selectedDeck?.name
-      );
       await exportTextToFile(content, filename, selectedExportFormat);
       setExportModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -109,14 +181,22 @@ export default function HomeScreen() {
   }
 
   async function runImport() {
+    const text = await pickJsonFileText();
+    if (!text) return;
+    
     try {
       setBusyTransfer(true);
-      const text = await pickJsonFileText();
-      if (!text) return;
       const parsed = JSON.parse(text);
       const result = await importBackupData(parsed);
-      Alert.alert("Import complete", `Imported ${result.importedDecks} deck(s) and ${result.importedCards} card(s).`);
+      const parts = [`Imported ${result.importedDecks} deck(s)`, `${result.importedCards} card(s)`];
+      if (result.importedCollections > 0) {
+        parts.push(`${result.importedCollections} collection(s)`);
+      }
+      Alert.alert("Import complete", parts.join(", "));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // If user imported data, mark landing as seen
+      AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
+      setSeenLanding(true);
     } catch (error) {
       Alert.alert("Import failed", (error as Error).message || "Could not import backup file");
     } finally {
@@ -130,94 +210,230 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
-        <View>
-          <Text style={[styles.title, { color: colors.foreground }]}>مجموعاتي</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>My Decks</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={handleImportRequest} activeOpacity={0.8} disabled={busyTransfer}>
-            <View style={styles.actionButtonWrap}>
-              <View style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}> 
-                {busyTransfer ? (
-                  <ActivityIndicator size="small" color={colors.mutedForeground} />
-                ) : (
-                  <Feather name="upload" size={16} color={colors.mutedForeground} />
-                )}
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.mutedForeground }]}>Import</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={openExportModal} activeOpacity={0.8} disabled={busyTransfer}>
-            <View style={styles.actionButtonWrap}>
-              <View style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}> 
-                <Feather name="download" size={16} color={colors.mutedForeground} />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.mutedForeground }]}>Export</Text>
-            </View>
-          </TouchableOpacity>
-          {totalDue > 0 && (
-            <View style={[styles.totalDueBadge, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.totalDueText, { color: colors.primaryForeground }]}>
-                {totalDue} due
-              </Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={openModal}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={22} color={colors.primaryForeground} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Header 
+        onProfilePress={() => Alert.alert("Profile", "Sign in coming soon")}
+        onLogoPress={() => setSeenLanding(false)}
+      />
 
       {/* Content */}
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
-      ) : decks.length === 0 ? (
-        <View style={styles.center}>
-          <Feather name="layers" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No decks yet</Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Tap + to create your first Arabic vocabulary deck
-          </Text>
-          <TouchableOpacity
-            style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-            onPress={openModal}
-          >
-            <Text style={[styles.emptyBtnText, { color: colors.primaryForeground }]}>Create First Deck</Text>
-          </TouchableOpacity>
-        </View>
       ) : (
-        <FlatList
-          data={decks}
-          keyExtractor={(d) => d.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: bottomPad, gap: 12 }}
-          renderItem={({ item }) => {
-            const deckCards = cards.filter((card) => card.deckId === item.id);
-            const latestCardUpdatedAt = deckCards.reduce(
-              (max, card) => Math.max(max, card.updatedAt || card.createdAt || 0),
-              0
-            );
-            const lastUpdated = Math.max(item.updatedAt || item.createdAt || 0, latestCardUpdatedAt);
+        <>
+          {/* Landing Section (shown on first visit or when both decks and collections are empty) */}
+          {(seenLanding === false || (decks.length === 0 && collections.length === 0)) ? (
+            <View style={styles.fullScroll}>
+              <AnimatedWelcomeMessage />
 
-            return (
-              <DeckCard
-                deck={item}
-                cardCount={deckCards.length}
-                dueCount={dueByDeck[item.id] || 0}
-                addedLabel={formatShortDate(item.createdAt)}
-                updatedLabel={formatShortDate(lastUpdated)}
+              {/* Logo/Branding */}
+              <View style={styles.brandingSection}>
+                <Feather name="bookmark" size={56} color={colors.primary} />
+                <Text style={[styles.brandingText, { color: colors.mutedForeground }]}>
+                  Start building your Arabic vocabulary today
+                </Text>
+              </View>
+
+              {/* Quick Actions */}
+              <View style={styles.quickActionsContainer}>
+                <TouchableOpacity
+                  style={[styles.quickActionBtn, { backgroundColor: colors.primary }]}
+                  onPress={openModal}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="plus-circle" size={24} color={colors.primaryForeground} />
+                  <View>
+                    <Text style={[styles.quickActionTitle, { color: colors.primaryForeground }]}>
+                      Create Deck
+                    </Text>
+                    <Text style={[styles.quickActionSubtitle, { color: colors.primaryForeground + "CC" }]}>
+                      Start a new vocabulary deck
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.quickActionBtn, { backgroundColor: colors.secondary }]}
+                  onPress={() => {
+                    AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
+                    setSeenLanding(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="layers" size={24} color={colors.foreground} />
+                  <View>
+                    <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>Browse</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: colors.mutedForeground }]}>View decks & collections</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.quickActionBtn, { backgroundColor: colors.secondary }]}
+                  onPress={openCollectionModal}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="folder-plus" size={24} color={colors.foreground} />
+                  <View>
+                    <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>
+                      Create Collection
+                    </Text>
+                    <Text style={[styles.quickActionSubtitle, { color: colors.mutedForeground }]}>
+                      Group related decks
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              {/* Stats Overview */}
+              <View style={[styles.statsContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+                <View style={styles.statsRow}>
+                  <View style={styles.statCard}>
+                    <Text style={[styles.statNumber, { color: colors.primary }]}>{decks.length}</Text>
+                    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Decks</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={[styles.statNumber, { color: colors.primary }]}>{totalCards}</Text>
+                    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Cards</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={[styles.statNumber, { color: colors.destructive }]}>{totalDue}</Text>
+                    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Due</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Text style={[styles.statNumber, { color: colors.success }]}>{collections.length}</Text>
+                    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Collections</Text>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.actionButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                    onPress={handleImportRequest}
+                    disabled={busyTransfer}
+                    activeOpacity={0.7}
+                  >
+                    {busyTransfer ? (
+                      <ActivityIndicator size="small" color={colors.mutedForeground} />
+                    ) : (
+                      <>
+                        <Feather name="upload" size={16} color={colors.mutedForeground} />
+                        <Text style={[styles.actionBtnText, { color: colors.mutedForeground }]}>Import</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                    onPress={openExportModal}
+                    disabled={busyTransfer}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="download" size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.actionBtnText, { color: colors.mutedForeground }]}>Export</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                    onPress={openCollectionModal}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="folder-plus" size={18} color={colors.primaryForeground} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                    onPress={openModal}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={20} color={colors.primaryForeground} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Decks & Collections List */}
+              <FlatList
+                data={independentDecks}
+                keyExtractor={(d) => d.id}
+                contentContainerStyle={{ padding: 16, paddingBottom: bottomPad, gap: 12 }}
+                ListHeaderComponent={
+                  <View style={{ gap: 16 }}>
+                    {collections.length > 0 && (
+                      <View style={{ gap: 10 }}>
+                        <View style={styles.sectionHeader}>
+                          <View>
+                            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Collections</Text>
+                            <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+                              Grouped decks with shared topics
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={{ gap: 10 }}>
+                          {collections.map((collection) => {
+                            const collectionDecks = decks.filter((deck) => collection.deckIds.includes(deck.id));
+                            const collectionCards = cards.filter((card) => collection.deckIds.includes(card.deckId));
+                            return (
+                              <CollectionCard
+                                key={collection.id}
+                                collection={collection}
+                                deckCount={collectionDecks.length}
+                                cardCount={collectionCards.length}
+                              />
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={styles.sectionHeader}>
+                      <View>
+                        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                          {collections.length > 0 ? "Independent Decks" : "Your Decks"}
+                        </Text>
+                        <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+                          {collections.length > 0 ? "Decks not assigned to a collection" : "Tap a deck to review or edit"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                }
+                ListEmptyComponent={
+                  collections.length > 0 ? (
+                    <View style={styles.center}>
+                      <Feather name="folder" size={44} color={colors.mutedForeground} />
+                      <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No independent decks</Text>
+                      <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                        All decks are organized inside collections.
+                      </Text>
+                    </View>
+                  ) : null
+                }
+                renderItem={({ item }) => {
+                  const deckCards = cards.filter((card) => card.deckId === item.id);
+                  const latestCardUpdatedAt = deckCards.reduce(
+                    (max, card) => Math.max(max, card.updatedAt || card.createdAt || 0),
+                    0
+                  );
+                  const lastUpdated = Math.max(item.updatedAt || item.createdAt || 0, latestCardUpdatedAt);
+
+                  return (
+                    <DeckCard
+                      deck={item}
+                      cardCount={deckCards.length}
+                      dueCount={dueByDeck[item.id] || 0}
+                      addedLabel={formatShortDate(item.createdAt)}
+                      updatedLabel={formatShortDate(lastUpdated)}
+                    />
+                  );
+                }}
+                showsVerticalScrollIndicator={false}
               />
-            );
-          }}
-          showsVerticalScrollIndicator={false}
-        />
+            </View>
+          )}
+        </>
       )}
 
       {Platform.OS !== "web" && <FloatingBubble />}
@@ -294,40 +510,89 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.modalDismiss} onPress={() => setExportModalVisible(false)} />
           <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}> 
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Export Decks</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Export</Text>
 
             <View style={styles.exportSection}>
-              <Text style={[styles.exportSectionTitle, { color: colors.mutedForeground }]}>Select Deck</Text>
-              <View style={styles.exportOptionsList}>
-                <TouchableOpacity
-                  style={[
-                    styles.exportOption,
-                    {
-                      borderColor: selectedExportDeckId === ALL_DECKS_EXPORT_ID ? colors.primary : colors.border,
-                      backgroundColor: selectedExportDeckId === ALL_DECKS_EXPORT_ID ? colors.primary + "22" : colors.secondary,
-                    },
-                  ]}
-                  onPress={() => setSelectedExportDeckId(ALL_DECKS_EXPORT_ID)}
-                >
-                  <Text style={{ color: selectedExportDeckId === ALL_DECKS_EXPORT_ID ? colors.primary : colors.foreground }}>All Decks</Text>
-                </TouchableOpacity>
-                {decks.map((deck) => (
+              <Text style={[styles.exportSectionTitle, { color: colors.mutedForeground }]}>Type</Text>
+              <View style={styles.formatRow}>
+                {(["deck", "collection"] as const).map((type) => (
                   <TouchableOpacity
-                    key={deck.id}
+                    key={type}
                     style={[
-                      styles.exportOption,
+                      styles.formatChip,
                       {
-                        borderColor: selectedExportDeckId === deck.id ? colors.primary : colors.border,
-                        backgroundColor: selectedExportDeckId === deck.id ? colors.primary + "22" : colors.secondary,
+                        borderColor: exportMode === type ? colors.primary : colors.border,
+                        backgroundColor: exportMode === type ? colors.primary + "22" : colors.secondary,
                       },
                     ]}
-                    onPress={() => setSelectedExportDeckId(deck.id)}
+                    onPress={() => setExportMode(type)}
+                    disabled={type === "collection" && collections.length === 0}
                   >
-                    <Text style={{ color: selectedExportDeckId === deck.id ? colors.primary : colors.foreground }} numberOfLines={1}>{deck.name}</Text>
+                    <Text style={{ color: exportMode === type ? colors.primary : colors.foreground, fontWeight: "700" }}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
+
+            {exportMode === "deck" ? (
+              <View style={styles.exportSection}>
+                <Text style={[styles.exportSectionTitle, { color: colors.mutedForeground }]}>Select Deck</Text>
+                <View style={styles.exportOptionsList}>
+                  <TouchableOpacity
+                    style={[
+                      styles.exportOption,
+                      {
+                        borderColor: selectedExportDeckId === ALL_DECKS_EXPORT_ID ? colors.primary : colors.border,
+                        backgroundColor: selectedExportDeckId === ALL_DECKS_EXPORT_ID ? colors.primary + "22" : colors.secondary,
+                      },
+                    ]}
+                    onPress={() => setSelectedExportDeckId(ALL_DECKS_EXPORT_ID)}
+                  >
+                    <Text style={{ color: selectedExportDeckId === ALL_DECKS_EXPORT_ID ? colors.primary : colors.foreground }}>All Decks</Text>
+                  </TouchableOpacity>
+                  {independentDecks.map((deck) => (
+                    <TouchableOpacity
+                      key={deck.id}
+                      style={[
+                        styles.exportOption,
+                        {
+                          borderColor: selectedExportDeckId === deck.id ? colors.primary : colors.border,
+                          backgroundColor: selectedExportDeckId === deck.id ? colors.primary + "22" : colors.secondary,
+                        },
+                      ]}
+                      onPress={() => setSelectedExportDeckId(deck.id)}
+                    >
+                      <Text style={{ color: selectedExportDeckId === deck.id ? colors.primary : colors.foreground }} numberOfLines={1}>{deck.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.exportSection}>
+                <Text style={[styles.exportSectionTitle, { color: colors.mutedForeground }]}>Select Collection</Text>
+                <View style={styles.exportOptionsList}>
+                  {collections.map((collection) => (
+                    <TouchableOpacity
+                      key={collection.id}
+                      style={[
+                        styles.exportOption,
+                        {
+                          borderColor: selectedExportCollectionId === collection.id ? colors.primary : colors.border,
+                          backgroundColor: selectedExportCollectionId === collection.id ? colors.primary + "22" : colors.secondary,
+                        },
+                      ]}
+                      onPress={() => setSelectedExportCollectionId(collection.id)}
+                    >
+                      <Text style={{ color: selectedExportCollectionId === collection.id ? colors.primary : colors.foreground }} numberOfLines={1}>
+                        {collection.name} ({collection.deckIds.length} deck{collection.deckIds.length !== 1 ? "s" : ""})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             <View style={styles.exportSection}>
               <Text style={[styles.exportSectionTitle, { color: colors.mutedForeground }]}>File Type</Text>
@@ -374,6 +639,63 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* New Collection Modal */}
+      <Modal
+        visible={collectionModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCollectionModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.kvFlex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableOpacity style={styles.modalDismiss} onPress={() => setCollectionModalVisible(false)} />
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>New Collection</Text>
+
+            <TextInput
+              value={newCollectionName}
+              onChangeText={setNewCollectionName}
+              placeholder="e.g. Business Arabic, Travel Phrases..."
+              placeholderTextColor={colors.mutedForeground}
+              style={[
+                styles.modalInput,
+                { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.secondary },
+              ]}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleCreateCollection}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => setCollectionModalVisible(false)}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.createBtn,
+                  { backgroundColor: colors.primary, opacity: !newCollectionName.trim() ? 0.5 : 1 },
+                ]}
+                onPress={handleCreateCollection}
+                disabled={!newCollectionName.trim() || creating}
+              >
+                {creating ? (
+                  <ActivityIndicator color={colors.primaryForeground} size="small" />
+                ) : (
+                  <Text style={[styles.createBtnText, { color: colors.primaryForeground }]}>Create</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -401,7 +723,11 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 28, fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
   subtitle: { fontSize: 13, marginTop: 2 },
+  buttonGroup: { flexDirection: "row", gap: 8 },
   addBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  sectionHeader: { paddingTop: 4, gap: 2 },
+  sectionTitle: { fontSize: 18, fontWeight: "800" },
+  sectionSubtitle: { fontSize: 12, fontWeight: "500" },
   totalDueBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   totalDueText: { fontSize: 13, fontWeight: "700" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
@@ -456,5 +782,94 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
+  },
+  /* Landing page styles */
+  fullScroll: {
+    flex: 1,
+  },
+  brandingSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 32,
+    alignItems: "center",
+    gap: 12,
+  },
+  brandingText: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 24,
+    maxWidth: "85%",
+  },
+  quickActionsContainer: {
+    paddingHorizontal: 16,
+    gap: 12,
+    paddingBottom: 32,
+  },
+  quickActionBtn: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  quickActionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  quickActionSubtitle: {
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  /* Stats styles */
+  statsContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between",
+  },
+  actionBtn: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 44,
+  },
+  actionBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

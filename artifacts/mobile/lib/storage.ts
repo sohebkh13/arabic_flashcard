@@ -32,15 +32,25 @@ export interface CustomField {
   value: string;
 }
 
+export interface Collection {
+  id: string;
+  name: string;
+  deckIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface BackupData {
   version: 1;
   exportedAt: number;
   decks: Deck[];
   cards: Flashcard[];
+  collections?: Collection[];
 }
 
 const DECKS_KEY = "arabic_flashcards_decks";
 const CARDS_KEY = "arabic_flashcards_cards";
+const COLLECTIONS_KEY = "arabic_flashcards_collections";
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -68,6 +78,19 @@ function normalizeDeck(raw: unknown): Deck {
     id: typeof item.id === "string" ? item.id : generateId(),
     name: typeof item.name === "string" ? item.name : "",
     dialect: item.dialect === "Egyptian" ? "Egyptian" : "MSA",
+    createdAt,
+    updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : createdAt,
+  };
+}
+
+function normalizeCollection(raw: unknown): Collection {
+  const item = (raw || {}) as Partial<Collection>;
+  const createdAt = typeof item.createdAt === "number" ? item.createdAt : Date.now();
+  const deckIds = Array.isArray(item.deckIds) ? item.deckIds.filter((id) => typeof id === "string") : [];
+  return {
+    id: typeof item.id === "string" ? item.id : generateId(),
+    name: typeof item.name === "string" ? item.name : "",
+    deckIds,
     createdAt,
     updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : createdAt,
   };
@@ -220,34 +243,125 @@ export async function moveCard(cardId: string, targetDeckId: string): Promise<vo
   }
 }
 
-export async function buildBackup(deckId?: string): Promise<BackupData> {
+export async function getCollections(): Promise<Collection[]> {
+  try {
+    const raw = await AsyncStorage.getItem(COLLECTIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => normalizeCollection(item));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveCollection(collection: Omit<Collection, "id" | "createdAt" | "updatedAt">): Promise<Collection> {
+  const collections = await getCollections();
+  const now = Date.now();
+  const newCollection: Collection = {
+    ...collection,
+    id: generateId(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  collections.push(newCollection);
+  await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+  return newCollection;
+}
+
+export async function updateCollection(id: string, updates: Partial<Omit<Collection, "id" | "createdAt" | "updatedAt">>): Promise<void> {
+  const collections = await getCollections();
+  const idx = collections.findIndex((c) => c.id === id);
+  if (idx >= 0) {
+    collections[idx] = { ...collections[idx], ...updates, updatedAt: Date.now() };
+    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+  }
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  const collections = await getCollections();
+  const filtered = collections.filter((c) => c.id !== id);
+  await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(filtered));
+}
+
+export async function addDeckToCollection(collectionId: string, deckId: string): Promise<void> {
+  const collections = await getCollections();
+  const idx = collections.findIndex((c) => c.id === collectionId);
+  if (idx >= 0) {
+    const deckIds = new Set(collections[idx].deckIds);
+    deckIds.add(deckId);
+    collections[idx] = { ...collections[idx], deckIds: Array.from(deckIds), updatedAt: Date.now() };
+    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+  }
+}
+
+export async function removeDeckFromCollection(collectionId: string, deckId: string): Promise<void> {
+  const collections = await getCollections();
+  const idx = collections.findIndex((c) => c.id === collectionId);
+  if (idx >= 0) {
+    collections[idx] = { ...collections[idx], deckIds: collections[idx].deckIds.filter((id) => id !== deckId), updatedAt: Date.now() };
+    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+  }
+}
+
+export async function getDecksInCollection(collectionId: string): Promise<Deck[]> {
+  const collections = await getCollections();
+  const collection = collections.find((c) => c.id === collectionId);
+  if (!collection) return [];
+  const decks = await getDecks();
+  return decks.filter((d) => collection.deckIds.includes(d.id));
+}
+
+export async function buildBackup(deckId?: string, collectionId?: string): Promise<BackupData> {
   const decks = await getDecks();
   const cards = await getCards();
+  const collections = await getCollections();
 
-  if (!deckId) {
+  if (collectionId) {
+    const collection = collections.find((c) => c.id === collectionId);
+    if (!collection) {
+      return {
+        version: 1,
+        exportedAt: Date.now(),
+        decks: [],
+        cards: [],
+        collections: [],
+      };
+    }
     return {
       version: 1,
       exportedAt: Date.now(),
-      decks,
-      cards,
+      decks: decks.filter((d) => collection.deckIds.includes(d.id)),
+      cards: cards.filter((c) => collection.deckIds.includes(c.deckId)),
+      collections: [collection],
     };
   }
 
-  const selectedDeck = decks.find((deck) => deck.id === deckId);
-  if (!selectedDeck) {
+  if (deckId) {
+    const selectedDeck = decks.find((deck) => deck.id === deckId);
+    if (!selectedDeck) {
+      return {
+        version: 1,
+        exportedAt: Date.now(),
+        decks: [],
+        cards: [],
+      };
+    }
+
     return {
       version: 1,
       exportedAt: Date.now(),
-      decks: [],
-      cards: [],
+      decks: [selectedDeck],
+      cards: cards.filter((card) => card.deckId === deckId),
     };
   }
 
   return {
     version: 1,
     exportedAt: Date.now(),
-    decks: [selectedDeck],
-    cards: cards.filter((card) => card.deckId === deckId),
+    decks,
+    cards,
+    collections,
   };
 }
 
@@ -258,17 +372,19 @@ function normalizeBackupData(raw: unknown): BackupData {
     exportedAt: typeof parsed.exportedAt === "number" ? parsed.exportedAt : Date.now(),
     decks: Array.isArray(parsed.decks) ? parsed.decks.map((deck) => normalizeDeck(deck)) : [],
     cards: Array.isArray(parsed.cards) ? parsed.cards.map((card) => normalizeCard(card)) : [],
+    collections: Array.isArray(parsed.collections) ? parsed.collections.map((col) => normalizeCollection(col)) : [],
   };
 }
 
-export async function importBackup(raw: unknown): Promise<{ importedDecks: number; importedCards: number }> {
+export async function importBackup(raw: unknown): Promise<{ importedDecks: number; importedCards: number; importedCollections: number }> {
   const data = normalizeBackupData(raw);
   if (data.decks.length === 0) {
-    return { importedDecks: 0, importedCards: 0 };
+    return { importedDecks: 0, importedCards: 0, importedCollections: 0 };
   }
 
   const currentDecks = await getDecks();
   const currentCards = await getCards();
+  const currentCollections = await getCollections();
 
   const deckIdMap = new Map<string, string>();
   const importedDecks: Deck[] = data.decks.map((deck) => {
@@ -296,8 +412,25 @@ export async function importBackup(raw: unknown): Promise<{ importedDecks: numbe
     })
     .filter((card): card is Flashcard => Boolean(card));
 
+  const importedCollections: Collection[] = (data.collections || [])
+    .map((collection) => {
+      return {
+        ...collection,
+        id: generateId(),
+        deckIds: collection.deckIds
+          .map((oldId) => deckIdMap.get(oldId))
+          .filter((id): id is string => Boolean(id)),
+        createdAt: collection.createdAt || Date.now(),
+        updatedAt: collection.updatedAt || collection.createdAt || Date.now(),
+      };
+    })
+    .filter((col) => col.deckIds.length > 0);
+
   await AsyncStorage.setItem(DECKS_KEY, JSON.stringify([...currentDecks, ...importedDecks]));
   await AsyncStorage.setItem(CARDS_KEY, JSON.stringify([...currentCards, ...importedCards]));
+  if (importedCollections.length > 0) {
+    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify([...currentCollections, ...importedCollections]));
+  }
 
-  return { importedDecks: importedDecks.length, importedCards: importedCards.length };
+  return { importedDecks: importedDecks.length, importedCards: importedCards.length, importedCollections: importedCollections.length };
 }

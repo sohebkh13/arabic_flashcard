@@ -17,7 +17,8 @@ export interface TranslationResult {
 
 export async function translate(
   text: string,
-  direction: TranslationDirection
+  direction: TranslationDirection,
+  signal?: AbortSignal
 ): Promise<TranslationResult> {
   if (!text.trim()) throw new Error("Empty input");
 
@@ -35,6 +36,7 @@ export async function translate(
       // Header-based auth (required since Nov 2025 — form body auth deprecated)
       "Authorization": `DeepL-Auth-Key ${DEEPL_API_KEY}`,
     },
+    signal,
     body: JSON.stringify({
       text: [text],
       source_lang: sourceLang,
@@ -70,13 +72,58 @@ export function isLikelyRomanizedArabic(text: string): boolean {
   return !hasArabic && hasLatin;
 }
 
-export async function convertRomanizedToArabic(text: string): Promise<string> {
+export async function convertRomanizedToArabic(text: string, signal?: AbortSignal): Promise<string> {
   const value = text.trim();
   if (!value) return value;
   if (!isLikelyRomanizedArabic(value)) return value;
 
-  const result = await translate(value, "en_to_ar");
+  const result = await translate(value, "en_to_ar", signal);
   return result.translatedText;
+}
+
+const arabicToLatinMap: Array<[RegExp, string]> = [
+  [/آ/g, "aa"],
+  [/أ|إ|ا/g, "a"],
+  [/ب/g, "b"],
+  [/ت/g, "t"],
+  [/ث/g, "th"],
+  [/ج/g, "j"],
+  [/ح/g, "h"],
+  [/خ/g, "kh"],
+  [/د/g, "d"],
+  [/ذ/g, "dh"],
+  [/ر/g, "r"],
+  [/ز/g, "z"],
+  [/س/g, "s"],
+  [/ش/g, "sh"],
+  [/ص/g, "s"],
+  [/ض/g, "d"],
+  [/ط/g, "t"],
+  [/ظ/g, "z"],
+  [/ع/g, "'"],
+  [/غ/g, "gh"],
+  [/ف/g, "f"],
+  [/ق/g, "q"],
+  [/ك/g, "k"],
+  [/ل/g, "l"],
+  [/م/g, "m"],
+  [/ن/g, "n"],
+  [/ه/g, "h"],
+  [/و/g, "w"],
+  [/ي/g, "y"],
+  [/ة/g, "ah"],
+  [/ى/g, "a"],
+  [/ء/g, "'"],
+  [/ؤ/g, "u"],
+  [/ئ/g, "i"],
+  [/ً|ٌ|ٍ|َ|ُ|ِ|ْ|ّ|ٰ/g, ""],
+];
+
+export function transliterateArabicToLatin(text: string): string {
+  const value = text.trim();
+  if (!value) return value;
+
+  return arabicToLatinMap.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), value);
 }
 
 export async function detectAndTranslate(text: string): Promise<TranslationResult & { direction: TranslationDirection }> {

@@ -1,4 +1,4 @@
-import { BackupData, Flashcard } from "@/lib/storage";
+import { BackupData, Flashcard, Collection } from "@/lib/storage";
 
 function csvEscape(value: string): string {
   const escaped = value.replace(/"/g, '""');

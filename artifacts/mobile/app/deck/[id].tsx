@@ -26,7 +26,7 @@ export default function DeckScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { decks, cards, dueByDeck, removeDeck, editDeck, removeCard } = useApp();
+  const { decks, cards, collections, dueByDeck, removeDeck, editDeck, removeCard, addDeckToCollectionMut, removeDeckFromCollectionMut } = useApp();
 
   const deck = decks.find((d) => d.id === id);
   const deckCards = useMemo(() => cards.filter((c) => c.deckId === id), [cards, id]);
@@ -34,9 +34,13 @@ export default function DeckScreen() {
 
   const [editModal, setEditModal] = useState(false);
   const [editName, setEditName] = useState(deck?.name || "");
+  const [collectionModal, setCollectionModal] = useState(false);
+  const [busyCollectionId, setBusyCollectionId] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const deckCollections = collections.filter((collection) => collection.deckIds.includes(deck?.id || ""));
+  const availableCollections = collections;
 
   if (!deck) {
     return (
@@ -82,6 +86,21 @@ export default function DeckScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
+  async function handleToggleCollection(collectionId: string) {
+    try {
+      setBusyCollectionId(collectionId);
+      const isInCollection = deckCollections.some((collection) => collection.id === collectionId);
+      if (isInCollection) {
+        await removeDeckFromCollectionMut(collectionId, deck.id);
+      } else {
+        await addDeckToCollectionMut(collectionId, deck.id);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } finally {
+      setBusyCollectionId(null);
+    }
+  }
+
   async function handleDeleteCard(card: Flashcard) {
     if (Platform.OS === "web") {
       const confirmed = window.confirm(`Delete "${card.arabic}"?`);
@@ -112,6 +131,12 @@ export default function DeckScreen() {
           <CopyButton text={deck.name} size={15} />
         </View>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => setCollectionModal(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Feather name="folder-plus" size={20} color={colors.mutedForeground} />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => { setEditName(deck.name); setEditModal(true); }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -227,6 +252,39 @@ export default function DeckScreen() {
               returnKeyType="done"
               onSubmitEditing={handleEditSave}
             />
+
+            <View style={styles.collectionSection}>
+              <Text style={[styles.collectionSectionTitle, { color: colors.mutedForeground }]}>Collections</Text>
+              <Text style={[styles.collectionSectionSubtitle, { color: colors.mutedForeground }]}>Add or remove this deck from collections.</Text>
+              <View style={styles.collectionPills}>
+                {availableCollections.length === 0 ? (
+                  <Text style={[styles.noCollectionsText, { color: colors.mutedForeground }]}>No collections yet.</Text>
+                ) : (
+                  availableCollections.map((collection) => {
+                    const active = deckCollections.some((item) => item.id === collection.id);
+                    return (
+                      <TouchableOpacity
+                        key={collection.id}
+                        style={[
+                          styles.collectionChip,
+                          {
+                            backgroundColor: active ? colors.primary + "22" : colors.secondary,
+                            borderColor: active ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => void handleToggleCollection(collection.id)}
+                        disabled={busyCollectionId === collection.id}
+                      >
+                        <Text style={{ color: active ? colors.primary : colors.foreground, fontWeight: "700" }} numberOfLines={1}>
+                          {collection.name}
+                        </Text>
+                        <Feather name={active ? "check" : "plus"} size={14} color={active ? colors.primary : colors.mutedForeground} />
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.cancelBtn, { borderColor: colors.border }]}
@@ -242,6 +300,56 @@ export default function DeckScreen() {
                 <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>Save</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={collectionModal} transparent animationType="slide" onRequestClose={() => setCollectionModal(false)}>
+        <KeyboardAvoidingView
+          style={styles.kvFlex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableOpacity style={styles.modalDismiss} onPress={() => setCollectionModal(false)} />
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Collections</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.mutedForeground }]}>Tap a collection to add or remove this deck.</Text>
+            <View style={styles.collectionList}>
+              {availableCollections.length === 0 ? (
+                <Text style={[styles.noCollectionsText, { color: colors.mutedForeground }]}>No collections yet.</Text>
+              ) : (
+                availableCollections.map((collection) => {
+                  const active = deckCollections.some((item) => item.id === collection.id);
+                  return (
+                    <TouchableOpacity
+                      key={collection.id}
+                      style={[
+                        styles.collectionRow,
+                        {
+                          backgroundColor: active ? colors.primary + "18" : colors.secondary,
+                          borderColor: active ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => void handleToggleCollection(collection.id)}
+                      disabled={busyCollectionId === collection.id}
+                    >
+                      <View style={styles.collectionRowMain}>
+                        <Text style={[styles.collectionRowTitle, { color: colors.foreground }]} numberOfLines={1}>{collection.name}</Text>
+                        <Text style={[styles.collectionRowSub, { color: colors.mutedForeground }]}>
+                          {collection.deckIds.length} deck{collection.deckIds.length !== 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                      <View style={[styles.collectionRowBadge, { backgroundColor: active ? colors.primary : colors.secondary }]}> 
+                        <Feather name={active ? "check" : "plus"} size={14} color={active ? colors.primaryForeground : colors.mutedForeground} />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: colors.border }]} onPress={() => setCollectionModal(false)}>
+              <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Close</Text>
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -264,6 +372,21 @@ const styles = StyleSheet.create({
   deckNameRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   deckName: { flex: 1, fontSize: 18, fontWeight: "700" },
   headerActions: { flexDirection: "row", gap: 18 },
+  collectionSection: { gap: 8, marginTop: 4 },
+  collectionSectionTitle: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.6 },
+  collectionSectionSubtitle: { fontSize: 12, lineHeight: 17 },
+  collectionPills: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  collectionChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+  },
+  noCollectionsText: { fontSize: 13, fontWeight: "600" },
   statsRow: {
     flexDirection: "row",
     paddingVertical: 12,
@@ -338,4 +461,25 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: 15, fontWeight: "600" },
   saveBtn: { flex: 2, borderRadius: 12, paddingVertical: 13, alignItems: "center" },
   saveBtnText: { fontSize: 15, fontWeight: "700" },
+  collectionList: { gap: 10 },
+  collectionRow: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  collectionRowMain: { flex: 1, gap: 2 },
+  collectionRowTitle: { fontSize: 15, fontWeight: "700" },
+  collectionRowSub: { fontSize: 12, fontWeight: "600" },
+  collectionRowBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

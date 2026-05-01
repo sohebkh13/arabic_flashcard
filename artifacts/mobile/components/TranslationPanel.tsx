@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -13,7 +13,7 @@ import { ArabicText } from "@/components/ArabicText";
 import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
-import { convertRomanizedToArabic, isLikelyRomanizedArabic, translate } from "@/lib/deepl";
+import { convertRomanizedToArabic, isLikelyRomanizedArabic, translate, transliterateArabicToLatin } from "@/lib/deepl";
 import { useColors } from "@/hooks/useColors";
 
 interface TranslationPanelProps {
@@ -30,57 +30,94 @@ export function TranslationPanel({
   const colors = useColors();
   const [inputText, setInputText] = useState(initialText);
   const [translation, setTranslation] = useState("");
+  const [romanizedTranslation, setRomanizedTranslation] = useState("");
   const [direction, setDirection] = useState<"ar_to_en" | "en_to_ar">(initialDirection);
   const [loading, setLoading] = useState(false);
   const [normalizingArabic, setNormalizingArabic] = useState(false);
   const [error, setError] = useState("");
+  const requestIdRef = useRef(0);
 
   const isArabicMode = direction === "ar_to_en";
   const sourceLang = isArabicMode ? "Arabic" : "English";
   const targetLang = isArabicMode ? "English" : "Arabic";
+
+  useEffect(() => {
+    const trimmed = inputText.trim();
+    const requestId = ++requestIdRef.current;
+    const controller = new AbortController();
+
+    if (!trimmed) {
+      setTranslation("");
+      setRomanizedTranslation("");
+      setError("");
+      setLoading(false);
+      setNormalizingArabic(false);
+      return () => controller.abort();
+    }
+
+    const timeout = setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        setError("");
+        try {
+          let sourceText = trimmed;
+          if (isArabicMode && isLikelyRomanizedArabic(sourceText)) {
+            setNormalizingArabic(true);
+            sourceText = await convertRomanizedToArabic(sourceText, controller.signal);
+          }
+
+          if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+          const result = await translate(sourceText, direction, controller.signal);
+          if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+
+          setTranslation(result.translatedText);
+          setRomanizedTranslation(isArabicMode ? transliterateArabicToLatin(result.translatedText) : "");
+        } catch (e: unknown) {
+          if ((e as Error).name === "AbortError") return;
+          if (requestId !== requestIdRef.current) return;
+          setTranslation("");
+          setRomanizedTranslation("");
+          setError((e as Error).message || "Translation failed");
+        } finally {
+          if (!controller.signal.aborted && requestId === requestIdRef.current) {
+            setLoading(false);
+            setNormalizingArabic(false);
+          }
+        }
+      })();
+    }, 450);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+      requestIdRef.current += 1;
+    };
+  }, [inputText, direction, isArabicMode]);
 
   function handleSwapDirection() {
     const newDir: "ar_to_en" | "en_to_ar" = isArabicMode ? "en_to_ar" : "ar_to_en";
     setDirection(newDir);
     if (translation) {
       setInputText(translation);
-      setTranslation(inputText);
     } else {
       setInputText("");
-      setTranslation("");
     }
+    setTranslation("");
+    setRomanizedTranslation("");
     setError("");
+    setLoading(false);
+    setNormalizingArabic(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
   function handleClear() {
     setInputText("");
     setTranslation("");
+    setRomanizedTranslation("");
     setError("");
+    setLoading(false);
+    setNormalizingArabic(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }
-
-  async function handleTranslate() {
-    if (!inputText.trim()) return;
-    setLoading(true);
-    setError("");
-    try {
-      let sourceText = inputText.trim();
-      if (isArabicMode && isLikelyRomanizedArabic(sourceText)) {
-        setNormalizingArabic(true);
-        sourceText = await convertRomanizedToArabic(sourceText);
-        setInputText(sourceText);
-      }
-
-      const result = await translate(sourceText, direction);
-      setTranslation(result.translatedText);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: unknown) {
-      setError((e as Error).message || "Translation failed");
-    } finally {
-      setNormalizingArabic(false);
-      setLoading(false);
-    }
   }
 
   async function handleNormalizeArabicInput() {
@@ -126,6 +163,8 @@ export function TranslationPanel({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
+  const liveStatusText = loading ? "Translating live..." : "Live translation updates as you type.";
+
   return (
     <View style={styles.container}>
       {/* Direction bar */}
@@ -150,6 +189,8 @@ export function TranslationPanel({
           )}
         </View>
       </View>
+
+      <Text style={[styles.helperText, { color: colors.mutedForeground }]}>{liveStatusText}</Text>
 
       {/* Input box */}
       <View style={[styles.inputBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -210,26 +251,6 @@ export function TranslationPanel({
         <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
       ) : null}
 
-      {/* Translate button */}
-      <TouchableOpacity
-        style={[
-          styles.translateBtn,
-          { backgroundColor: colors.primary, opacity: loading || normalizingArabic || !inputText.trim() ? 0.6 : 1 },
-        ]}
-        onPress={handleTranslate}
-        disabled={loading || normalizingArabic || !inputText.trim()}
-        activeOpacity={0.8}
-      >
-        {loading || normalizingArabic ? (
-          <ActivityIndicator color={colors.primaryForeground} />
-        ) : (
-          <>
-            <Feather name="globe" size={16} color={colors.primaryForeground} />
-            <Text style={[styles.translateBtnText, { color: colors.primaryForeground }]}>Translate</Text>
-          </>
-        )}
-      </TouchableOpacity>
-
       {/* Result */}
       {translation ? (
         <View style={[styles.resultBox, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
@@ -246,6 +267,10 @@ export function TranslationPanel({
               <ListenButton text={translation} language={!isArabicMode ? "ar" : "en"} size={22} />
             </View>
           </View>
+
+          {isArabicMode && romanizedTranslation ? (
+            <Text style={[styles.romanizedText, { color: colors.mutedForeground }]}>{romanizedTranslation}</Text>
+          ) : null}
 
           {onSaveFlashcard ? (
             <TouchableOpacity
@@ -326,6 +351,16 @@ const styles = StyleSheet.create({
   resultTextWrap: { flex: 1, paddingRight: 10 },
   resultActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   resultText: { fontSize: 18, lineHeight: 28 },
+  romanizedText: {
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 0.2,
+  },
+  helperText: {
+    fontSize: 12,
+    lineHeight: 18,
+    paddingHorizontal: 2,
+  },
   saveBtn: {
     borderRadius: 10,
     paddingVertical: 12,

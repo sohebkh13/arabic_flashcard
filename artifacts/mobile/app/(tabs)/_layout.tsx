@@ -2,13 +2,14 @@ import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { useTheme } from "@/context/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 
 export default function TabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -18,6 +19,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
+          tabBarLabelPosition: "below-icon",
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
@@ -42,6 +44,7 @@ export default function TabLayout() {
             <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
           ),
       }}
+      initialRouteName="index"
     >
       <Tabs.Screen
         name="index"

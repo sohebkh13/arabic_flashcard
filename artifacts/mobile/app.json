@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Arabic Flashcards",
+    "name": "Tarjim",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -28,10 +28,10 @@
       "targetSdkVersion": 36
     },
     "web": {
-      "favicon": "./assets/images/icon.png",
+      "favicon": "/favicon.ico",
       "publicUrl": "/",
       "scope": "/",
-      "shortName": "Arabic Cards"
+      "shortName": "Tarjim"
     },
     "plugins": [
       [
