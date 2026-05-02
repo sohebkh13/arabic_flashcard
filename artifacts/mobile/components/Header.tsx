@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, UserButton } from "@clerk/clerk-expo";
 import {
   Image,
   StyleSheet,
@@ -15,15 +15,14 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/context/ThemeContext";
 
 interface HeaderProps {
-  onProfilePress?: () => void;
   onLogoPress?: () => void;
 }
 
-export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
+export function Header({ onLogoPress }: HeaderProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isSignedIn, user } = useAuth();
+  const { isSignedIn } = useAuth();
   const { resolvedTheme, toggleTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -34,14 +33,6 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
     try {
       await AsyncStorage.setItem("tarjim_seen_landing", "false");
     } catch {}
-  }
-
-  function handleProfilePress() {
-    if (onProfilePress) {
-      onProfilePress();
-    } else if (isSignedIn) {
-      router.push("/(tabs)/account");
-    }
   }
 
   return (
@@ -86,14 +77,21 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
 
           {/* Profile/Auth Section */}
           {isSignedIn ? (
-            <TouchableOpacity
-              onPress={handleProfilePress}
-              style={[styles.profileBtn, { backgroundColor: colors.secondary }]}
-              activeOpacity={0.7}
-              title={user?.firstName || "Profile"}
-            >
-              <Feather name="user" size={18} color={colors.foreground} />
-            </TouchableOpacity>
+            <UserButton
+              afterSignOutUrl="/(auth)/sign-in"
+              appearance={{
+                elements: {
+                  avatarBox: "user-button-avatar",
+                  button: "user-button-button",
+                } as any,
+                colors: {
+                  background: colors.secondary,
+                  foreground: colors.foreground,
+                  primary: colors.primary,
+                  primaryForeground: colors.primaryForeground,
+                } as any,
+              }}
+            />
           ) : (
             <TouchableOpacity
               onPress={() => router.push("/(auth)/sign-in")}
