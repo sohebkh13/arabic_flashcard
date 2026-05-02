@@ -18,7 +18,6 @@ import { CopyButton } from "@/components/CopyButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
-import { convertRomanizedToArabic, isLikelyRomanizedArabic } from "@/lib/deepl";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -64,8 +63,6 @@ export default function CardDetailScreen() {
     }))
   );
   const [moveModal, setMoveModal] = useState(false);
-  const [normalizingArabic, setNormalizingArabic] = useState(false);
-  const [micError, setMicError] = useState("");
   const [userLanguage] = useState(() => getUserLanguage());
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -178,24 +175,9 @@ export default function CardDetailScreen() {
                   <MicButton
                     size={28}
                     language={userLanguage}
-                    onTranscription={async (text) => {
-                      setMicError("");
-                      setNormalizingArabic(true);
-                      try {
-                        if (isLikelyRomanizedArabic(text)) {
-                          const normalized = await convertRomanizedToArabic(text);
-                          setContext(normalized);
-                        } else {
-                          setContext(text);
-                        }
-                      } catch {
-                        setContext(text);
-                        setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
-                      } finally {
-                        setNormalizingArabic(false);
-                      }
+                    onTranscription={(text) => {
+                      setContext(text);
                     }}
-                    onError={(err) => setMicError(err)}
                   />
                 </View>
               </View>
@@ -214,24 +196,9 @@ export default function CardDetailScreen() {
                   <MicButton
                     size={28}
                     language={userLanguage}
-                    onTranscription={async (text) => {
-                      setMicError("");
-                      setNormalizingArabic(true);
-                      try {
-                        if (isLikelyRomanizedArabic(text)) {
-                          const normalized = await convertRomanizedToArabic(text);
-                          setGrammarNotes(normalized);
-                        } else {
-                          setGrammarNotes(text);
-                        }
-                      } catch {
-                        setGrammarNotes(text);
-                        setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
-                      } finally {
-                        setNormalizingArabic(false);
-                      }
+                    onTranscription={(text) => {
+                      setGrammarNotes(text);
                     }}
-                    onError={(err) => setMicError(err)}
                   />
                 </View>
               </View>
