@@ -36,11 +36,11 @@ export default function LoginScreen() {
     router.push("/(auth)/sign-in");
   }
 
-  async function handleContinueAsGuest() {
+  async function handleSignIn() {
     try {
       await AsyncStorage.setItem(LANDING_FLAG, "true");
     } catch {}
-    router.replace("/(tabs)");
+    router.push("/(auth)/sign-in");
   }
 
   if (!isLoaded) {
@@ -93,12 +93,12 @@ export default function LoginScreen() {
         >
           <Text style={[styles.ghostBtnText, { color: colors.mutedForeground }]}>Continue as Guest</Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Footer */}
-      <Text style={[styles.footer, { color: colors.mutedForeground }]}>
-        By continuing, you agree to our Terms & Privacy Policy
-      </Text>
+        {/* Footer */}
+        <Text style={[styles.footer, { color: colors.mutedForeground }]}>
+          By continuing, you agree to our Terms & Privacy Policy
+        </Text>
+      </View>
     </View>
   );
 }
