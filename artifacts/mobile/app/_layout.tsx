@@ -20,7 +20,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { StatusBar } from "expo-status-bar";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+const LANDING_FLAG = "tarjim_seen_login";
 
 SplashScreen.preventAutoHideAsync();
 
