@@ -20,7 +20,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 import { StatusBar } from "expo-status-bar";
-const LANDING_FLAG = "tarjim_seen_login";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -52,7 +52,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoaded) {
-      AsyncStorage.getItem("tarjim_seen_landing")
+      AsyncStorage.getItem("tarjim_seen_login")
         .then((v) => setLandingSeen(v === "true"))
         .catch(() => setLandingSeen(false));
     }
@@ -67,12 +67,12 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Not seen landing yet → show login screen first
+  // Not seen login yet → show login screen first
   if (!landingSeen) {
     return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="login" /></Stack>;
   }
 
-  // Already seen landing and signed in → show main app
+  // Already seen login and signed in → show main app
   return <>{children}</>;
 }
 
@@ -117,21 +117,21 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
-        <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProviderCompat>
-                <ThemeProvider>
-                  <AppProvider>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <KeyboardProviderCompat>
+              <ThemeProvider>
+                <AppProvider>
+                  <ErrorBoundary>
                     <AuthWrapper>
                       <AppContent />
                     </AuthWrapper>
-                  </AppProvider>
-                </ThemeProvider>
-              </KeyboardProviderCompat>
-            </GestureHandlerRootView>
-          </QueryClientProvider>
-        </ErrorBoundary>
+                  </ErrorBoundary>
+                </AppProvider>
+              </ThemeProvider>
+            </KeyboardProviderCompat>
+          </GestureHandlerRootView>
+        </QueryClientProvider>
       </ClerkProvider>
     </SafeAreaProvider>
   );
