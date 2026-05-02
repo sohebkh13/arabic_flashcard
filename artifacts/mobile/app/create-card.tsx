@@ -233,9 +233,23 @@ export default function CreateCardScreen() {
               <MicButton
                 size={28}
                 language={userLanguage}
-                onTranscription={(text) => {
-                  setContext(text);
+                onTranscription={async (text) => {
                   setMicError("");
+                  setNormalizingArabic(true);
+                  try {
+                    // Convert romanized Arabic to Arabic script if detected
+                    if (isLikelyRomanizedArabic(text)) {
+                      const normalized = await convertRomanizedToArabic(text);
+                      setContext(normalized);
+                    } else {
+                      setContext(text);
+                    }
+                  } catch {
+                    setContext(text);
+                    setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
+                  } finally {
+                    setNormalizingArabic(false);
+                  }
                 }}
                 onError={(err) => setMicError(err)}
               />
@@ -260,9 +274,23 @@ export default function CreateCardScreen() {
               <MicButton
                 size={28}
                 language={userLanguage}
-                onTranscription={(text) => {
-                  setGrammarNotes(text);
+                onTranscription={async (text) => {
                   setMicError("");
+                  setNormalizingArabic(true);
+                  try {
+                    // Convert romanized Arabic to Arabic script if detected
+                    if (isLikelyRomanizedArabic(text)) {
+                      const normalized = await convertRomanizedToArabic(text);
+                      setGrammarNotes(normalized);
+                    } else {
+                      setGrammarNotes(text);
+                    }
+                  } catch {
+                    setGrammarNotes(text);
+                    setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
+                  } finally {
+                    setNormalizingArabic(false);
+                  }
                 }}
                 onError={(err) => setMicError(err)}
               />

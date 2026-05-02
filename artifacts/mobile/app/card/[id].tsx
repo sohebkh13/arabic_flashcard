@@ -14,10 +14,19 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArabicText } from "@/components/ArabicText";
+import { CopyButton } from "@/components/CopyButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ListenButton } from "@/components/ListenButton";
+import { MicButton } from "@/components/MicButton";
+import { convertRomanizedToArabic, isLikelyRomanizedArabic } from "@/lib/deepl";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+
+function getUserLanguage(): string {
+  if (Platform.OS !== "web" || typeof navigator === "undefined") return "en";
+  const lang = navigator.language || (navigator as { userLanguage?: string }).userLanguage || "en";
+  return lang.split("-")[0];
+}
 
 interface CustomFieldDraft {
   id: string;
@@ -55,6 +64,9 @@ export default function CardDetailScreen() {
     }))
   );
   const [moveModal, setMoveModal] = useState(false);
+  const [normalizingArabic, setNormalizingArabic] = useState(false);
+  const [micError, setMicError] = useState("");
+  const [userLanguage] = useState(() => getUserLanguage());
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -159,7 +171,34 @@ export default function CardDetailScreen() {
               />
             </View>
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Context</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>Context</Text>
+                <View style={styles.labelActions}>
+                  <CopyButton text={context} size={15} />
+                  <MicButton
+                    size={28}
+                    language={userLanguage}
+                    onTranscription={async (text) => {
+                      setMicError("");
+                      setNormalizingArabic(true);
+                      try {
+                        if (isLikelyRomanizedArabic(text)) {
+                          const normalized = await convertRomanizedToArabic(text);
+                          setContext(normalized);
+                        } else {
+                          setContext(text);
+                        }
+                      } catch {
+                        setContext(text);
+                        setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
+                      } finally {
+                        setNormalizingArabic(false);
+                      }
+                    }}
+                    onError={(err) => setMicError(err)}
+                  />
+                </View>
+              </View>
               <TextInput
                 value={context}
                 onChangeText={setContext}
@@ -168,7 +207,34 @@ export default function CardDetailScreen() {
               />
             </View>
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes</Text>
+                <View style={styles.labelActions}>
+                  <CopyButton text={grammarNotes} size={15} />
+                  <MicButton
+                    size={28}
+                    language={userLanguage}
+                    onTranscription={async (text) => {
+                      setMicError("");
+                      setNormalizingArabic(true);
+                      try {
+                        if (isLikelyRomanizedArabic(text)) {
+                          const normalized = await convertRomanizedToArabic(text);
+                          setGrammarNotes(normalized);
+                        } else {
+                          setGrammarNotes(text);
+                        }
+                      } catch {
+                        setGrammarNotes(text);
+                        setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
+                      } finally {
+                        setNormalizingArabic(false);
+                      }
+                    }}
+                    onError={(err) => setMicError(err)}
+                  />
+                </View>
+              </View>
               <TextInput
                 value={grammarNotes}
                 onChangeText={setGrammarNotes}
@@ -343,6 +409,8 @@ const styles = StyleSheet.create({
   metaValue: { fontSize: 14, fontWeight: "600" },
   field: { gap: 8 },
   label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  labelActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   arabicInput: { fontSize: 22, textAlign: "right", writingDirection: "rtl", lineHeight: 34 },
   multi: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },
