@@ -21,6 +21,12 @@ import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
 
+function getUserLanguage(): string {
+  if (Platform.OS !== "web" || typeof navigator === "undefined") return "en";
+  const lang = navigator.language || (navigator as { userLanguage?: string }).userLanguage || "en";
+  return lang.split("-")[0];
+}
+
 interface CustomFieldDraft {
   id: string;
   name: string;
@@ -52,6 +58,7 @@ export default function CreateCardScreen() {
   const [saving, setSaving] = useState(false);
   const [normalizingArabic, setNormalizingArabic] = useState(false);
   const [micError, setMicError] = useState("");
+  const [userLanguage] = useState(() => getUserLanguage());
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -219,7 +226,21 @@ export default function CreateCardScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>Context Sentence (optional)</Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Context Sentence (optional)</Text>
+            <View style={styles.labelActions}>
+              <CopyButton text={context} size={15} />
+              <MicButton
+                size={28}
+                language={userLanguage}
+                onTranscription={(text) => {
+                  setContext(text);
+                  setMicError("");
+                }}
+                onError={(err) => setMicError(err)}
+              />
+            </View>
+          </View>
           <TextInput
             value={context}
             onChangeText={setContext}
@@ -232,7 +253,21 @@ export default function CreateCardScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes (optional)</Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes (optional)</Text>
+            <View style={styles.labelActions}>
+              <CopyButton text={grammarNotes} size={15} />
+              <MicButton
+                size={28}
+                language={userLanguage}
+                onTranscription={(text) => {
+                  setGrammarNotes(text);
+                  setMicError("");
+                }}
+                onError={(err) => setMicError(err)}
+              />
+            </View>
+          </View>
           <TextInput
             value={grammarNotes}
             onChangeText={setGrammarNotes}

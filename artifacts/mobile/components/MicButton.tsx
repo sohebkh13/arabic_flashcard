@@ -20,7 +20,7 @@ interface MicButtonProps {
   onTranscription: (text: string) => void;
   onError?: (err: string) => void;
   size?: number;
-  language?: "ar" | "en";
+  language?: string;
 }
 
 type WebSpeechRecognitionResultItem = { transcript: string };
@@ -96,12 +96,28 @@ function getSpeechErrorMessage(errorCode: string, braveBrowser: boolean): string
   }
 }
 
-function getRecognitionLanguageCandidates(language: "ar" | "en"): string[] {
-  if (language === "ar") {
-    // Browsers differ in which Arabic locale tags are accepted.
+function getRecognitionLanguageCandidates(language: string): string[] {
+  // Handle Arabic variants
+  if (language?.startsWith("ar")) {
     return ["ar", "ar-SA", "ar-EG"];
   }
-  return ["en-US", "en", "en-GB"];
+  // Handle English variants
+  if (language?.startsWith("en")) {
+    return ["en-US", "en", "en-GB"];
+  }
+  // For any other language, return it directly with some fallbacks
+  const candidates = [language];
+  // Common fallback patterns for major languages
+  if (language === "es") return ["es-ES", "es", "es-MX"];
+  if (language === "fr") return ["fr-FR", "fr", "fr-CA"];
+  if (language === "de") return ["de-DE", "de"];
+  if (language === "it") return ["it-IT", "it"];
+  if (language === "pt") return ["pt-BR", "pt-PT", "pt"];
+  if (language === "ru") return ["ru-RU", "ru"];
+  if (language === "zh") return ["zh-CN", "zh-TW", "zh"];
+  if (language === "ja") return ["ja-JP", "ja"];
+  if (language === "ko") return ["ko-KR", "ko"];
+  return candidates;
 }
 
 export function MicButton({ onTranscription, onError, size = 48, language = "ar" }: MicButtonProps) {
