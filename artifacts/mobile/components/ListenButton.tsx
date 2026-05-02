@@ -35,7 +35,13 @@ export function ListenButton({ text, language, size = 20 }: ListenButtonProps) {
   };
 
   return (
-    <TouchableOpacity onPress={handlePress} disabled={!text} style={{ opacity: text ? 1 : 0.5, padding: 4 }}>
+    <TouchableOpacity 
+      onPress={handlePress} 
+      disabled={!text} 
+      style={{ opacity: text ? 1 : 0.5, padding: 6, minWidth: 32, height: 32, alignItems: "center", justifyContent: "center" }}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      activeOpacity={0.6}
+    >
       {isPlaying ? (
         <Feather name="square" size={size} color={colors.primary} />
       ) : (

@@ -13,12 +13,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform, View } from "react-native";
+import { ClerkProvider } from "@clerk/clerk-expo";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
-import { ThemeToggleButton } from "@/components/ThemeToggleButton";
 import { StatusBar } from "expo-status-bar";
 
 SplashScreen.preventAutoHideAsync();
@@ -53,7 +53,6 @@ function AppShell() {
     <>
       <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ThemeToggleButton />
         <Stack
           screenOptions={{
             headerShown: false,
@@ -85,19 +84,21 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProviderCompat>
-              <ThemeProvider>
-                <AppProvider>
-                  <AppShell />
-                </AppProvider>
-              </ThemeProvider>
-            </KeyboardProviderCompat>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
-      </ErrorBoundary>
+      <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProviderCompat>
+                <ThemeProvider>
+                  <AppProvider>
+                    <AppShell />
+                  </AppProvider>
+                </ThemeProvider>
+              </KeyboardProviderCompat>
+            </GestureHandlerRootView>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </ClerkProvider>
     </SafeAreaProvider>
   );
 }

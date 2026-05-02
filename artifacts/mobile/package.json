@@ -56,6 +56,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@clerk/clerk-expo": "^2.19.31",
+    "expo-auth-session": "^55.0.15",
     "expo-clipboard": "^8.0.8",
     "expo-document-picker": "^14.0.8",
     "expo-file-system": "^19.0.22",

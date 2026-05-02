@@ -210,7 +210,12 @@ export function TranslationPanel({
         />
         <View style={styles.inputActions}>
           {inputText.length > 0 && (
-            <TouchableOpacity onPress={handleClear} style={styles.clearBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity 
+              onPress={handleClear} 
+              style={styles.clearBtn} 
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              activeOpacity={0.6}
+            >
               <Feather name="x-circle" size={18} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
@@ -221,9 +226,10 @@ export function TranslationPanel({
           {isArabicMode && isLikelyRomanizedArabic(inputText) && (
             <TouchableOpacity
               onPress={handleNormalizeArabicInput}
-              style={styles.clearBtn}
+              style={styles.transBtn}
               disabled={normalizingArabic}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              activeOpacity={0.6}
             >
               {normalizingArabic ? (
                 <ActivityIndicator size="small" color={colors.mutedForeground} />
@@ -334,9 +340,24 @@ const styles = StyleSheet.create({
   inputActions: {
     paddingTop: 4,
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    flexDirection: "column",
+    justifyContent: "flex-start",
   },
-  clearBtn: { padding: 2 },
+  clearBtn: { 
+    padding: 6,
+    minWidth: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  transBtn: {
+    padding: 6,
+    minWidth: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   translateBtn: {
     borderRadius: 10,
     paddingVertical: 13,

@@ -25,9 +25,10 @@ export function CopyButton({ text, size = 16, onCopied }: CopyButtonProps) {
   return (
     <TouchableOpacity
       onPress={handleCopy}
-      style={{ padding: 4, opacity: text.trim() ? 1 : 0.45 }}
+      style={{ padding: 6, opacity: text.trim() ? 1 : 0.45, minWidth: 32, height: 32, alignItems: "center", justifyContent: "center" }}
       disabled={!text.trim()}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      activeOpacity={0.6}
       accessibilityRole="button"
       accessibilityLabel="Copy text"
     >

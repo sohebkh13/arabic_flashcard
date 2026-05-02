@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/clerk-expo";
 import {
   Image,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTheme } from "@/context/ThemeContext";
 
 interface HeaderProps {
   onProfilePress?: () => void;
@@ -21,6 +23,9 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isSignedIn, user } = useAuth();
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   async function handleLogoPress() {
     // Notify parent that logo was pressed
@@ -60,14 +65,37 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
           </Text>
         </TouchableOpacity>
 
-        {/* Profile Placeholder */}
-        <TouchableOpacity
-          onPress={onProfilePress}
-          style={[styles.profileBtn, { backgroundColor: colors.secondary }]}
-          activeOpacity={0.7}
-        >
-          <Feather name="user" size={18} color={colors.foreground} />
-        </TouchableOpacity>
+        {/* Right actions */}
+        <View style={styles.rightActions}>
+          {/* Theme Toggle */}
+          <TouchableOpacity
+            onPress={() => toggleTheme()}
+            style={[styles.iconBtn, { backgroundColor: colors.secondary }]}
+            activeOpacity={0.7}
+          >
+            <Feather name={isDark ? "sun" : "moon"} size={16} color={colors.foreground} />
+          </TouchableOpacity>
+
+          {/* Profile/Auth Section */}
+          {isSignedIn ? (
+            <TouchableOpacity
+              onPress={onProfilePress}
+              style={[styles.profileBtn, { backgroundColor: colors.secondary }]}
+              activeOpacity={0.7}
+              title={user?.firstName || "Profile"}
+            >
+              <Feather name="user" size={18} color={colors.foreground} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/sign-in")}
+              style={[styles.profileBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: colors.primaryForeground, fontSize: 12, fontWeight: "700" }}>Sign In</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -88,6 +116,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   logo: {
     width: 36,
     height: 36,
@@ -96,6 +129,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 0.3,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileBtn: {
     width: 36,
