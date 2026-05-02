@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import {
   Image,
   Platform,
@@ -16,28 +16,31 @@ import { useColors } from "@/hooks/useColors";
 
 const LANDING_FLAG = "tarjim_seen_landing";
 
-export default function LandingScreen() {
+export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isLoaded } = useAuth();
 
-  // If already signed in, skip landing
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      markLandingSeenAndGo();
-    }
-  }, [isLoaded, isSignedIn]);
+  async function handleSignUp() {
+    try {
+      await AsyncStorage.setItem(LANDING_FLAG, "true");
+    } catch {}
+    router.push("/(auth)/sign-up");
+  }
 
-  async function markLandingSeenAndGo() {
+  async function handleSignIn() {
+    try {
+      await AsyncStorage.setItem(LANDING_FLAG, "true");
+    } catch {}
+    router.push("/(auth)/sign-in");
+  }
+
+  async function handleContinueAsGuest() {
     try {
       await AsyncStorage.setItem(LANDING_FLAG, "true");
     } catch {}
     router.replace("/(tabs)");
-  }
-
-  async function handleContinueAsGuest() {
-    await markLandingSeenAndGo();
   }
 
   if (!isLoaded) {
@@ -63,27 +66,11 @@ export default function LandingScreen() {
         </Text>
       </View>
 
-      {/* Feature highlights */}
-      <View style={styles.features}>
-        <View style={styles.featureItem}>
-          <Feather name="translate" size={20} color={colors.primary} />
-          <Text style={[styles.featureText, { color: colors.foreground }]}>Live Translation</Text>
-        </View>
-        <View style={styles.featureItem}>
-          <Feather name="mic" size={20} color={colors.primary} />
-          <Text style={[styles.featureText, { color: colors.foreground }]}>Voice Input</Text>
-        </View>
-        <View style={styles.featureItem}>
-          <Feather name="book-open" size={20} color={colors.primary} />
-          <Text style={[styles.featureText, { color: colors.foreground }]}>Smart Flashcards</Text>
-        </View>
-      </View>
-
       {/* Action Buttons */}
       <View style={[styles.actions, { paddingBottom: Platform.OS === "web" ? 60 : insets.bottom + 24 }]}>
         <TouchableOpacity
           style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/(auth)/sign-up")}
+          onPress={handleSignUp}
           activeOpacity={0.8}
         >
           <Feather name="user-plus" size={20} color={colors.primaryForeground} />
@@ -92,7 +79,7 @@ export default function LandingScreen() {
 
         <TouchableOpacity
           style={[styles.secondaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => router.push("/(auth)/sign-in")}
+          onPress={handleSignIn}
           activeOpacity={0.7}
         >
           <Feather name="log-in" size={20} color={colors.foreground} />
@@ -163,26 +150,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
     maxWidth: "90%",
-  },
-  features: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 24,
-    paddingVertical: 24,
-    flexWrap: "wrap",
-  },
-  featureItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(128,128,128,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  featureText: {
-    fontSize: 12,
-    fontWeight: "600",
   },
   actions: {
     paddingHorizontal: 24,

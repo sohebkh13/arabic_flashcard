@@ -45,9 +45,9 @@ function KeyboardProviderCompat({ children }: { children: React.ReactNode }) {
   return <KeyboardProvider>{children}</KeyboardProvider>;
 }
 
-// Landing gate - checks if user has seen landing page
-function LandingGate({ children }: { children: React.ReactNode }) {
-  const { isLoaded } = useAuth();
+// Auth wrapper - shows login screen first, then after any action goes to main app
+function AuthWrapper({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded } = useAuth();
   const [landingSeen, setLandingSeen] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -58,18 +58,21 @@ function LandingGate({ children }: { children: React.ReactNode }) {
     }
   }, [isLoaded]);
 
+  // Still loading
   if (!isLoaded || landingSeen === null) {
     return (
       <View style={{ flex: 1, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center' }}>
-        {/* Minimal splash while loading */}
+        {/* Minimal loading */}
       </View>
     );
   }
 
+  // Not seen landing yet → show login screen first
   if (!landingSeen) {
-    return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="landing" /></Stack>;
+    return <Stack screenOptions={{ headerShown: false }}><Stack.Screen name="login" /></Stack>;
   }
 
+  // Already seen landing and signed in → show main app
   return <>{children}</>;
 }
 
@@ -120,9 +123,9 @@ export default function RootLayout() {
               <KeyboardProviderCompat>
                 <ThemeProvider>
                   <AppProvider>
-                    <LandingGate>
+                    <AuthWrapper>
                       <AppContent />
-                    </LandingGate>
+                    </AuthWrapper>
                   </AppProvider>
                 </ThemeProvider>
               </KeyboardProviderCompat>
