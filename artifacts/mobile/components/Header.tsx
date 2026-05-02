@@ -89,10 +89,12 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
           ) : (
             <TouchableOpacity
               onPress={() => router.push("/(auth)/sign-in")}
-              style={[styles.profileBtn, { backgroundColor: colors.primary }]}
+              style={[styles.authBtn, { backgroundColor: colors.primary }]}
               activeOpacity={0.7}
             >
-              <Text style={{ color: colors.primaryForeground, fontSize: 12, fontWeight: "700" }}>Sign In</Text>
+              <Text style={{ color: colors.primaryForeground, fontSize: 12, fontWeight: "700" }}>
+                Sign In
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -140,6 +142,13 @@ const styles = StyleSheet.create({
   profileBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authBtn: {
+    minHeight: 36,
+    paddingHorizontal: 14,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
