@@ -234,15 +234,6 @@ export default function CreateCardScreen() {
               />
             </View>
           </View>
-          <TextInput
-            value={context}
-            onChangeText={setContext}
-            placeholder="Example sentence using this word..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-            multiline
-            numberOfLines={3}
-          />
         </View>
 
         <View style={styles.field}>
@@ -269,45 +260,7 @@ export default function CreateCardScreen() {
             style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
             multiline
             numberOfLines={3}
-          />
-        </View>
-          </View>
-          <TextInput
-            value={context}
-            onChangeText={setContext}
-            placeholder="Example sentence using this word..."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-
-        <View style={styles.field}>
-          <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes (optional)</Text>
-            <View style={styles.labelActions}>
-              <CopyButton text={grammarNotes} size={15} />
-              <MicButton
-                size={28}
-                language={userLanguage}
-                onTranscription={(text) => {
-                  setMicError("");
-                  setGrammarNotes(text);
-                }}
-                onError={(err) => setMicError(err)}
-              />
-            </View>
-          </View>
-          <TextInput
-            value={grammarNotes}
-            onChangeText={setGrammarNotes}
-            placeholder="Verb form, gender, plural, etc."
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-            multiline
-            numberOfLines={3}
-          />
+           />
         </View>
 
         <View style={styles.field}>

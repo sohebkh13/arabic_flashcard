@@ -202,35 +202,6 @@ export default function CardDetailScreen() {
                 multiline
               />
             </View>
-              </View>
-              <TextInput
-                value={context}
-                onChangeText={setContext}
-                style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-                multiline
-              />
-            </View>
-            <View style={styles.field}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes</Text>
-                <View style={styles.labelActions}>
-                  <CopyButton text={grammarNotes} size={15} />
-                  <MicButton
-                    size={28}
-                    language={userLanguage}
-                    onTranscription={(text) => {
-                      setGrammarNotes(text);
-                    }}
-                  />
-                </View>
-              </View>
-              <TextInput
-                value={grammarNotes}
-                onChangeText={setGrammarNotes}
-                style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-                multiline
-              />
-            </View>
             <View style={styles.field}>
               <View style={styles.dynamicHeaderRow}>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>Extra Fields</Text>
