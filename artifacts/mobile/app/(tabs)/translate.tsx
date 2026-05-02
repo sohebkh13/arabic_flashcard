@@ -31,7 +31,7 @@ export default function TranslateScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header 
-        onProfilePress={() => router.push("/profile")}
+        onProfilePress={() => router.push("/(tabs)/account")}
         onLogoPress={() => {
           AsyncStorage.setItem("tarjim_seen_landing", "false").catch(() => {});
           router.push("/(tabs)");

@@ -218,7 +218,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header 
-        onProfilePress={() => Alert.alert("Profile", "Sign in coming soon")}
+        onProfilePress={() => router.push("/(tabs)/account")}
         onLogoPress={() => {
           setSeenLanding(false);
           setForceBrowseView(false);

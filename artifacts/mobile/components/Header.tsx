@@ -36,6 +36,14 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
     } catch {}
   }
 
+  function handleProfilePress() {
+    if (onProfilePress) {
+      onProfilePress();
+    } else if (isSignedIn) {
+      router.push("/(tabs)/account");
+    }
+  }
+
   return (
     <View
       style={[
@@ -50,7 +58,7 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
     >
       <View style={styles.content}>
         {/* Logo + App Name (clickable) */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.branding}
           onPress={handleLogoPress}
           activeOpacity={0.7}
@@ -79,7 +87,7 @@ export function Header({ onProfilePress, onLogoPress }: HeaderProps) {
           {/* Profile/Auth Section */}
           {isSignedIn ? (
             <TouchableOpacity
-              onPress={onProfilePress}
+              onPress={handleProfilePress}
               style={[styles.profileBtn, { backgroundColor: colors.secondary }]}
               activeOpacity={0.7}
               title={user?.firstName || "Profile"}
