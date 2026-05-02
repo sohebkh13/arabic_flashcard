@@ -21,12 +21,6 @@ import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
 
-function getUserLanguage(): string {
-  if (Platform.OS !== "web" || typeof navigator === "undefined") return "en";
-  const lang = navigator.language || (navigator as { userLanguage?: string }).userLanguage || "en";
-  return lang.split("-")[0];
-}
-
 interface CustomFieldDraft {
   id: string;
   name: string;
@@ -58,7 +52,6 @@ export default function CreateCardScreen() {
   const [saving, setSaving] = useState(false);
   const [normalizingArabic, setNormalizingArabic] = useState(false);
   const [micError, setMicError] = useState("");
-  const [userLanguage] = useState(() => getUserLanguage());
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -232,7 +225,7 @@ export default function CreateCardScreen() {
               <CopyButton text={context} size={15} />
               <MicButton
                 size={28}
-                language={userLanguage}
+                language="en"
                 onTranscription={(text) => {
                   setMicError("");
                   setContext(text);
@@ -240,6 +233,44 @@ export default function CreateCardScreen() {
                 onError={(err) => setMicError(err)}
               />
             </View>
+          </View>
+          <TextInput
+            value={context}
+            onChangeText={setContext}
+            placeholder="Example sentence using this word..."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        <View style={styles.field}>
+          <View style={styles.labelRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes (optional)</Text>
+            <View style={styles.labelActions}>
+              <CopyButton text={grammarNotes} size={15} />
+              <MicButton
+                size={28}
+                language="en"
+                onTranscription={(text) => {
+                  setMicError("");
+                  setGrammarNotes(text);
+                }}
+                onError={(err) => setMicError(err)}
+              />
+            </View>
+          </View>
+          <TextInput
+            value={grammarNotes}
+            onChangeText={setGrammarNotes}
+            placeholder="Verb form, gender, plural, etc."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
           </View>
           <TextInput
             value={context}

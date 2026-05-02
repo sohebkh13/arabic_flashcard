@@ -21,12 +21,6 @@ import { MicButton } from "@/components/MicButton";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
-function getUserLanguage(): string {
-  if (Platform.OS !== "web" || typeof navigator === "undefined") return "en";
-  const lang = navigator.language || (navigator as { userLanguage?: string }).userLanguage || "en";
-  return lang.split("-")[0];
-}
-
 interface CustomFieldDraft {
   id: string;
   name: string;
@@ -63,7 +57,6 @@ export default function CardDetailScreen() {
     }))
   );
   const [moveModal, setMoveModal] = useState(false);
-  const [userLanguage] = useState(() => getUserLanguage());
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -174,12 +167,41 @@ export default function CardDetailScreen() {
                   <CopyButton text={context} size={15} />
                   <MicButton
                     size={28}
-                    language={userLanguage}
+                    language="en"
                     onTranscription={(text) => {
                       setContext(text);
                     }}
                   />
                 </View>
+              </View>
+              <TextInput
+                value={context}
+                onChangeText={setContext}
+                style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                multiline
+              />
+            </View>
+            <View style={styles.field}>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes</Text>
+                <View style={styles.labelActions}>
+                  <CopyButton text={grammarNotes} size={15} />
+                  <MicButton
+                    size={28}
+                    language="en"
+                    onTranscription={(text) => {
+                      setGrammarNotes(text);
+                    }}
+                  />
+                </View>
+              </View>
+              <TextInput
+                value={grammarNotes}
+                onChangeText={setGrammarNotes}
+                style={[styles.input, styles.multi, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                multiline
+              />
+            </View>
               </View>
               <TextInput
                 value={context}
