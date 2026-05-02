@@ -50,19 +50,19 @@ export async function translate(
   const sourceLang = direction === "ar_to_en" ? "AR" : "EN";
   const targetLang = direction === "ar_to_en" ? "EN-US" : "AR";
 
+  const params = new URLSearchParams();
+  params.append("text", text);
+  params.append("source_lang", sourceLang);
+  params.append("target_lang", targetLang);
+
   const res = await fetch(`${DEEPL_BASE.replace(/\/+$/, "")}/translate`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      // Header-based auth (required since Nov 2025 — form body auth deprecated)
+      "Content-Type": "application/x-www-form-urlencoded",
       "Authorization": `DeepL-Auth-Key ${DEEPL_API_KEY}`,
     },
     signal,
-    body: JSON.stringify({
-      text: [text],
-      source_lang: sourceLang,
-      target_lang: targetLang,
-    }),
+    body: params.toString(),
   });
 
   if (!res.ok) {

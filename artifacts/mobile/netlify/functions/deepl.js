@@ -23,14 +23,15 @@ exports.handler = async (event) => {
     };
   }
 
-  const path = (event.path || "/").replace(/^\/?\.netlify\/functions\/deepl/, "").replace(/^\/api\/deepl/, "") || "/";
-  const upstreamUrl = `${DEEPL_API_ROOT}${path.startsWith("/") ? path : `/${path}`}${event.rawQuery ? `?${event.rawQuery}` : ""}`;
+  let path = event.path || "/";
+  path = path.replace(/^\/?\.netlify\/functions\/deepl/, "").replace(/^\/api\/deepl/, "") || "/";
+  const upstreamUrl = `${DEEPL_API_ROOT}${path.startsWith("/") ? "" : "/"}${path}${event.rawQuery ? `?${event.rawQuery}` : ""}`;
 
   const response = await fetch(upstreamUrl, {
     method: event.httpMethod,
     headers: {
       Authorization: event.headers?.authorization || event.headers?.Authorization || "",
-      "Content-Type": event.headers?.["content-type"] || event.headers?.["Content-Type"] || "application/x-www-form-urlencoded",
+      "Content-Type": "application/x-www-form-urlencoded",
     },
     body: event.httpMethod === "GET" || event.httpMethod === "HEAD" ? undefined : event.body,
   });

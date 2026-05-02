@@ -28,6 +28,19 @@ const queryClient = new QueryClient();
 // Ensure icon glyphs are available on all platforms, including web.
 Feather.loadFont().catch(() => {});
 
+// Inject Feather font CSS for web builds where the font file exists but CSS is missing
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    @font-face {
+      font-family: 'Feather';
+      src: url('/fonts/Feather.ttf') format('truetype');
+      font-display: swap;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function KeyboardProviderCompat({ children }: { children: React.ReactNode }) {
   if (Platform.OS === "web") {
     return <>{children}</>;
