@@ -1,0 +1,58 @@
+{
+  "name": "Tarjim",
+  "short_name": "Tarjim",
+  "description": "Learn Arabic with interactive flashcards - create custom decks, track progress, and master vocabulary offline",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#c9a84c",
+  "background_color": "#0f0f1a",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create New Card",
+      "short_name": "New Card",
+      "description": "Create a new flashcard",
+      "url": "/create-card",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Review Cards",
+      "short_name": "Review",
+      "description": "Start reviewing flashcards",
+      "url": "/review",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}
