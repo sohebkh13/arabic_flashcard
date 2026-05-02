@@ -21,6 +21,7 @@ function findWorkspaceRoot(startDir) {
 
 const workspaceRoot = findWorkspaceRoot(projectRoot);
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
+const landingPageTemplatePath = path.join(projectRoot, "server", "templates", "landing-page.html");
 
 function exitWithError(message) {
   console.error(message);
@@ -125,6 +126,16 @@ async function checkMetroHealth() {
 
 function getExpoPublicReplId() {
   return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
+}
+
+function getAppName() {
+  try {
+    const appJsonPath = path.join(projectRoot, "app.json");
+    const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
+    return appJson.expo?.name || "Tarjim";
+  } catch {
+    return "Tarjim";
+  }
 }
 
 async function startMetro(expoPublicDomain, expoPublicReplId) {
@@ -511,6 +522,7 @@ function copyPwaAssets(staticBuild) {
   const pwaFiles = [
     { src: "public/manifest.json", dest: "manifest.json" },
     { src: "public/service-worker.js", dest: "service-worker.js" },
+    { src: "public/_redirects", dest: "_redirects" },
   ];
 
   for (const file of pwaFiles) {
@@ -526,6 +538,23 @@ function copyPwaAssets(staticBuild) {
   }
 }
 
+function createStaticIndexHtml(staticBuild, baseUrl, appName) {
+  console.log("Creating static index.html...");
+
+  if (!fs.existsSync(landingPageTemplatePath)) {
+    throw new Error(`Landing page template not found: ${landingPageTemplatePath}`);
+  }
+
+  const landingPageTemplate = fs.readFileSync(landingPageTemplatePath, "utf-8");
+  const html = landingPageTemplate
+    .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
+    .replace(/EXPS_URL_PLACEHOLDER/g, baseUrl.replace(/^https?:\/\//, ""))
+    .replace(/APP_NAME_PLACEHOLDER/g, appName);
+
+  fs.writeFileSync(path.join(staticBuild, "index.html"), html);
+  console.log("  ✓ Created index.html");
+}
+
 async function main() {
   console.log("Building static Expo Go deployment...");
 
@@ -534,6 +563,7 @@ async function main() {
   const domain = getDeploymentDomain();
   const expoPublicReplId = getExpoPublicReplId();
   const baseUrl = `https://${domain}`;
+  const appName = getAppName();
   const timestamp = `${Date.now()}-${process.pid}`;
 
   prepareDirectories(timestamp);
@@ -579,6 +609,7 @@ async function main() {
 
   const staticBuild = path.join(projectRoot, "static-build");
   copyPwaAssets(staticBuild);
+  createStaticIndexHtml(staticBuild, baseUrl, appName);
 
   console.log("Build complete! Deploy to:", baseUrl);
 
