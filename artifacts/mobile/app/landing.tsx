@@ -22,6 +22,7 @@ export default function LandingScreen() {
   const router = useRouter();
   const { isLoaded } = useAuth();
 
+  // Mark landing as seen and navigate
   async function markLandingSeenAndNavigate(callback: () => void) {
     try {
       await AsyncStorage.setItem(LANDING_FLAG, "true");
@@ -44,85 +45,6 @@ export default function LandingScreen() {
   if (!isLoaded) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
-        <Image
-          source={require("@/assets/images/icon.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-    );
-  }
-
-  async function handleContinueAsGuest() {
-    await markLandingSeenAndNavigate(() => router.replace("/(tabs)"));
-  }
-
-  async function handleSignUp() {
-    await markLandingSeenAndNavigate(() => router.push("/(auth)/sign-up"));
-  }
-
-  async function handleSignIn() {
-    await markLandingSeenAndNavigate(() => router.push("/(auth)/sign-in"));
-  }
-
-  if (!isLoaded) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
-        <Image
-          source={require("@/assets/images/icon.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-    );
-  }
-  }, [isLoaded, isSignedIn]);
-
-  async function markLandingSeenAndGo() {
-    try {
-      await AsyncStorage.setItem(LANDING_FLAG, "true");
-    } catch {}
-    router.replace("/(tabs)");
-  }
-
-  async function markLandingSeenAndNavigate(callback: () => void) {
-    try {
-      await AsyncStorage.setItem("tarjim_seen_landing", "true");
-    } catch {}
-    callback();
-  }
-
-  async function markLandingSeenAndNavigate(callback: () => void) {
-    try {
-      await AsyncStorage.setItem("tarjim_seen_landing", "true");
-    } catch {}
-    callback();
-  }
-
-  async function handleContinueAsGuest() {
-    await markLandingSeenAndNavigate(() => router.replace("/(tabs)"));
-  }
-
-  async function handleSignUp() {
-    await markLandingSeenAndNavigate(() => router.push("/(auth)/sign-up"));
-  }
-
-  async function handleSignIn() {
-    await markLandingSeenAndNavigate(() => router.push("/(auth)/sign-in"));
-  }
-
-  async function handleSignUp() {
-    await markLandingSeenAndNavigate(() => router.push("/(auth)/sign-up"));
-  }
-
-  async function handleSignIn() {
-    await markLandingSeenAndNavigate(() => router.push("/(auth)/sign-in"));
-  }
-
-  if (!isLoaded) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
-        {/* Logo */}
         <Image
           source={require("@/assets/images/icon.png")}
           style={styles.logo}
