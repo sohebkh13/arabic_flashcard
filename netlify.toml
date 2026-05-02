@@ -1,0 +1,10 @@
+[build]
+  command = "pnpm --dir artifacts/mobile run build"
+  publish = "artifacts/mobile/static-build"
+  functions = "artifacts/mobile/netlify/functions"
+
+[[redirects]]
+  from = "/api/deepl/*"
+  to = "/.netlify/functions/deepl/:splat"
+  status = 200
+  force = true

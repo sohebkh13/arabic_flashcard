@@ -1,26 +1,25 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignUp } from "@clerk/clerk-expo";
+import { useOAuth } from "@clerk/clerk-expo";
+import { makeRedirectUri } from "expo-auth-session";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 
 export default function SignUpScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
+  const redirectUrl = makeRedirectUri({ scheme: "mobile", path: "sign-in-callback" });
 
   const onSignUpPress = async () => {
-    if (!isLoaded) return;
-
     try {
-      const result = await signUp.create({
-        strategy: "oauth_google",
-        redirectUrl: "exp://localhost:8081/(auth)/sign-in-callback",
+      const { createdSessionId, setActive } = await startOAuthFlow({
+        redirectUrl,
       });
 
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
         router.replace("/(tabs)");
       }
     } catch (err: any) {

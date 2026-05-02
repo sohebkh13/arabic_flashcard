@@ -51,6 +51,7 @@ export default function HomeScreen() {
   const { decks, cards, collections, dueByDeck, loading, createDeck, createCollection, exportBackup, importBackupData } = useApp();
 
   const [seenLanding, setSeenLanding] = useState<boolean | null>(null);
+  const [forceBrowseView, setForceBrowseView] = useState(false);
 
   // Read landing flag on mount
   React.useEffect(() => {
@@ -113,6 +114,12 @@ export default function HomeScreen() {
     // Mark landing as seen when user starts creating a collection
     AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
     setSeenLanding(true);
+  }
+
+  function handleBrowsePress() {
+    AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
+    setSeenLanding(true);
+    setForceBrowseView(true);
   }
 
   async function handleCreateDeck() {
@@ -212,7 +219,10 @@ export default function HomeScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header 
         onProfilePress={() => Alert.alert("Profile", "Sign in coming soon")}
-        onLogoPress={() => setSeenLanding(false)}
+        onLogoPress={() => {
+          setSeenLanding(false);
+          setForceBrowseView(false);
+        }}
       />
 
       {/* Content */}
@@ -222,8 +232,8 @@ export default function HomeScreen() {
         </View>
       ) : (
         <>
-          {/* Landing Section (shown on first visit or when both decks and collections are empty) */}
-          {(seenLanding === false || (decks.length === 0 && collections.length === 0)) ? (
+          {/* Landing Section (shown on first visit unless the user explicitly browses past it) */}
+          {!forceBrowseView && (seenLanding === false || (decks.length === 0 && collections.length === 0)) ? (
             <View style={styles.fullScroll}>
               <AnimatedWelcomeMessage />
 
@@ -255,10 +265,7 @@ export default function HomeScreen() {
 
                 <TouchableOpacity
                   style={[styles.quickActionBtn, { backgroundColor: colors.secondary }]}
-                  onPress={() => {
-                    AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
-                    setSeenLanding(true);
-                  }}
+                  onPress={handleBrowsePress}
                   activeOpacity={0.8}
                 >
                   <Feather name="layers" size={24} color={colors.foreground} />

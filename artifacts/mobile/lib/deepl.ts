@@ -2,11 +2,32 @@
 import { Platform } from "react-native";
 
 const DEEPL_API_KEY = process.env.EXPO_PUBLIC_DEEPL_API_KEY ?? "";
-// On web, browsers block direct calls (CORS). Route through local proxy.
+const WEB_PROXY_URL = process.env.EXPO_PUBLIC_DEEPL_PROXY_URL;
+
+function getWebProxyBase(): string {
+  if (WEB_PROXY_URL) {
+    return WEB_PROXY_URL;
+  }
+
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    const isLocalHost =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname.endsWith(".localhost");
+
+    if (isLocalHost) {
+      return "http://localhost:3099/v2";
+    }
+  }
+
+  return "/api/deepl";
+}
+
+// On web, browsers block direct calls (CORS). Route through a same-origin proxy.
 // On native (Expo Go / Android), call DeepL directly — no CORS restrictions.
-const DEEPL_BASE = Platform.OS === "web"
-  ? "http://localhost:3099/v2"
-  : "https://api-free.deepl.com/v2";
+const DEEPL_BASE = Platform.OS === "web" ? getWebProxyBase() : "https://api-free.deepl.com/v2";
 
 export type TranslationDirection = "ar_to_en" | "en_to_ar";
 
@@ -29,7 +50,7 @@ export async function translate(
   const sourceLang = direction === "ar_to_en" ? "AR" : "EN";
   const targetLang = direction === "ar_to_en" ? "EN-US" : "AR";
 
-  const res = await fetch(`${DEEPL_BASE}/translate`, {
+  const res = await fetch(`${DEEPL_BASE.replace(/\/+$/, "")}/translate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
