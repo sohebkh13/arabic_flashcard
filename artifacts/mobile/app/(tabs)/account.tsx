@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import { UserProfile } from "@clerk/clerk-expo";
+import { UserProfile, useAuth } from "@clerk/clerk-expo";
 import { useColors } from "@/hooks/useColors";
 import { SafeAreaView } from "react-native-safe-area-context";
 

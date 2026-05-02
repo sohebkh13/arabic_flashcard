@@ -59,7 +59,6 @@
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.31",
-    "@clerk/clerk-react": "^4.31.0",
     "expo-auth-session": "^55.0.15",
     "expo-clipboard": "^8.0.8",
     "expo-document-picker": "^14.0.8",
