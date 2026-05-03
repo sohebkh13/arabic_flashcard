@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm --filter mobile run build:web",
+  "outputDirectory": "artifacts/mobile/static-build",
+  "installCommand": "pnpm install",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/deepl/:path*", "destination": "/api/deepl" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
