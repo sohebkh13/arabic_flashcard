@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter mobile run build:web && cp -r artifacts/mobile/static-build dist",
+  "buildCommand": "pnpm --filter mobile run build:web",
   "outputDirectory": "dist",
   "installCommand": "pnpm install",
   "rewrites": [
