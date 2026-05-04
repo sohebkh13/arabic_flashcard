@@ -1,44 +1,325 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
-import { SignIn } from "@clerk/clerk-expo";
+import { Feather } from "@expo/vector-icons";
+import { useOAuth, useSignIn } from "@clerk/clerk-expo";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 
 export default function SignInScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { startOAuthFlow: startGoogleOAuth } = useOAuth({ strategy: "oauth_google" });
+  const { startOAuthFlow: startAppleOAuth } = useOAuth({ strategy: "oauth_apple" });
+  const { startOAuthFlow: startFacebookOAuth } = useOAuth({ strategy: "oauth_facebook" });
+
+  async function handleSubmit() {
+    if (!isLoaded || !email.trim() || !password) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await signIn.create({
+        strategy: "password",
+        identifier: email.trim(),
+        password,
+      });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)");
+      } else {
+        setError("Sign-in incomplete. Please try again.");
+      }
+    } catch (e: unknown) {
+      const err = e as any;
+      setError(err?.errors?.[0]?.message || err?.message || "Sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setLoading(true);
+    setError("");
+    try {
+      const { createdSessionId, setActive: oauthSetActive } = await startGoogleOAuth();
+      if (createdSessionId && oauthSetActive) {
+        await oauthSetActive({ session: createdSessionId });
+        router.replace("/(tabs)");
+      }
+    } catch (e: unknown) {
+      const err = e as any;
+      setError(err?.errors?.[0]?.message || err?.message || "Google sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAppleSignIn() {
+    setLoading(true);
+    setError("");
+    try {
+      const { createdSessionId, setActive: oauthSetActive } = await startAppleOAuth();
+      if (createdSessionId && oauthSetActive) {
+        await oauthSetActive({ session: createdSessionId });
+        router.replace("/(tabs)");
+      }
+    } catch (e: unknown) {
+      const err = e as any;
+      setError(err?.errors?.[0]?.message || err?.message || "Apple sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleFacebookSignIn() {
+    setLoading(true);
+    setError("");
+    try {
+      const { createdSessionId, setActive: oauthSetActive } = await startFacebookOAuth();
+      if (createdSessionId && oauthSetActive) {
+        await oauthSetActive({ session: createdSessionId });
+        router.replace("/(tabs)");
+      }
+    } catch (e: unknown) {
+      const err = e as any;
+      setError(err?.errors?.[0]?.message || err?.message || "Facebook sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SignIn
-        forceRedirect
-        routing="path"
-        path="/sign-in"
-        afterSignInUrl="/"
-        appearance={{
-          elements: {
-            rootBox: "clerk-root-box",
-            card: "clerk-card",
-          } as any,
-          colors: {
-            background: colors.background,
-            text: colors.foreground,
-            textSecondary: colors.mutedForeground,
-            primary: colors.primary,
-            primaryForeground: colors.primaryForeground,
-            inputBackground: colors.card,
-            inputBorder: colors.border,
-            inputText: colors.foreground,
-            buttonBackground: colors.primary,
-            buttonText: colors.primaryForeground,
-          } as any,
-        }}
-      />
-    </View>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.card, { backgroundColor: Platform.OS === "web" ? colors.card : "transparent" }]}>
+          <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Feather name="arrow-left" size={24} color={colors.foreground} />
+            </TouchableOpacity>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <View style={styles.form}>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>Welcome Back</Text>
+              <Text style={[styles.welcomeSubtitle, { color: colors.mutedForeground }]}>
+                Sign in to access your decks across devices
+              </Text>
+            </View>
+            {error ? (
+              <View style={[styles.errorBox, { backgroundColor: colors.card, borderColor: colors.destructive }]}>
+                <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Your password"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry
+                autoCapitalize="none"
+                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: loading || !isLoaded ? 0.7 : 1 }]}
+              onPress={handleSubmit}
+              disabled={loading || !isLoaded || !email.trim() || !password}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.primaryForeground} />
+              ) : (
+                <Text style={[styles.submitText, { color: colors.primaryForeground }]}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>or continue with</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: "#fff", borderColor: colors.border }]}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <View style={styles.socialBtnInner}>
+                <Feather name="chrome" size={20} color="#EA4335" />
+                <Text style={[styles.socialBtnText, { color: "#333" }]}>Continue with Google</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: "#000", borderColor: "#000" }]}
+              onPress={handleAppleSignIn}
+              disabled={loading}
+            >
+              <View style={styles.socialBtnInner}>
+                <Feather name="smartphone" size={20} color="#fff" />
+                <Text style={[styles.socialBtnText, { color: "#fff" }]}>Continue with Apple</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: "#1877F2", borderColor: "#1877F2" }]}
+              onPress={handleFacebookSignIn}
+              disabled={loading}
+            >
+              <View style={styles.socialBtnInner}>
+                <Feather name="facebook" size={20} color="#fff" />
+                <Text style={[styles.socialBtnText, { color: "#fff" }]}>Continue with Facebook</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")} style={styles.linkBtn}>
+              <Text style={[styles.linkText, { color: colors.mutedForeground }]}>
+                Don't have an account? <Text style={{ color: colors.primary, fontWeight: "700" }}>Sign Up</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+
+      {loading && (
+        <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.45)" }]}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.overlayText}>Signing in...</Text>
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
+  container: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: Platform.OS === "web" ? "center" : "flex-start",
+    alignItems: Platform.OS === "web" ? "center" : "stretch",
+    paddingVertical: Platform.OS === "web" ? 24 : 0,
+  },
+  card: {
+    width: "100%",
+    maxWidth: Platform.OS === "web" ? 420 : undefined,
+    borderRadius: Platform.OS === "web" ? 16 : 0,
+    padding: Platform.OS === "web" ? 32 : 0,
+    shadowColor: Platform.OS === "web" ? "#000" : "transparent",
+    shadowOffset: Platform.OS === "web" ? { width: 0, height: 4 } : undefined,
+    shadowOpacity: Platform.OS === "web" ? 0.08 : 0,
+    shadowRadius: Platform.OS === "web" ? 16 : 0,
+    elevation: Platform.OS === "web" ? 4 : 0,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  backBtn: { width: 40, height: 40, justifyContent: "center" },
+  form: { paddingHorizontal: 20, gap: 16, paddingTop: 12 },
+  welcomeTitle: { fontSize: 28, fontWeight: "800", letterSpacing: -0.5 },
+  welcomeSubtitle: { fontSize: 15, marginTop: 4, lineHeight: 20 },
+  errorBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+  },
+  errorText: { fontSize: 14 },
+  field: { gap: 6 },
+  label: { fontSize: 14, fontWeight: "600" },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  submitBtn: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  submitText: { fontSize: 16, fontWeight: "700" },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 8,
+  },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 12, fontWeight: "500" },
+  socialBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  socialBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  socialBtnText: { fontSize: 14, fontWeight: "600" },
+  linkBtn: { alignItems: "center", marginTop: 8 },
+  linkText: { fontSize: 14 },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  overlayText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 12,
   },
 });

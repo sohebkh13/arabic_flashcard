@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform, View } from "react-native";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { clerkTokenCache } from "@/lib/clerk-token-cache";
 import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -52,7 +53,7 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoaded) {
-      AsyncStorage.getItem("tarjim_seen_login")
+      AsyncStorage.getItem("tarjim_seen_landing")
         .then((v) => setLandingSeen(v === "true"))
         .catch(() => setLandingSeen(false));
     }
@@ -98,7 +99,7 @@ function AppContent() {
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="deck/[id]" options={{ presentation: "card" }} />
-          <Stack.Screen name="create-card" options={{ presentation: "modal" }} />
+
           <Stack.Screen name="review" options={{ presentation: "fullScreenModal" }} />
           <Stack.Screen name="card/[id]" options={{ presentation: "card" }} />
         </Stack>
@@ -116,7 +117,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
+      <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!} tokenCache={clerkTokenCache}>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProviderCompat>

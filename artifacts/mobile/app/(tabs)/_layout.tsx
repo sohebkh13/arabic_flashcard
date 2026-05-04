@@ -65,6 +65,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="create-card"
+        options={{
+          title: "Add Word",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="plus-circle" size={size ?? 22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
           title: "Account",

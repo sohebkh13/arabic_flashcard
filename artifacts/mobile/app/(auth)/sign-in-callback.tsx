@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import { useAuth } from "@clerk/clerk-expo";
 import { useColors } from "@/hooks/useColors";
 

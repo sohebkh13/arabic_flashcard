@@ -443,8 +443,6 @@ export default function HomeScreen() {
         </>
       )}
 
-      {Platform.OS === "web" && <FloatingBubble />}
-
       {/* New Deck Modal */}
       <Modal
         visible={modalVisible}

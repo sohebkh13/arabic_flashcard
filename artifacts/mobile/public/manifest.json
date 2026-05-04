@@ -54,31 +54,5 @@
       ]
     }
   ],
-  "shortcuts": [
-    {
-      "name": "Create New Card",
-      "short_name": "New Card",
-      "description": "Create a new flashcard",
-      "url": "/create-card",
-      "icons": [
-        {
-          "src": "/android-chrome-192x192.png",
-          "sizes": "192x192"
-        }
-      ]
-    },
-    {
-      "name": "Review Cards",
-      "short_name": "Review",
-      "description": "Start reviewing flashcards",
-      "url": "/review",
-      "icons": [
-        {
-          "src": "/android-chrome-192x192.png",
-          "sizes": "192x192"
-        }
-      ]
-    }
-  ],
   "prefer_related_applications": false
 }

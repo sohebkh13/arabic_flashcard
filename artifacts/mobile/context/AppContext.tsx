@@ -1,4 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useAuth } from "@clerk/clerk-expo";
+import { setUserId } from "@/lib/storage-keys";
+import { migrateGuestDataToUser } from "@/lib/storage";
 import {
   BackupData,
   Collection,
@@ -74,9 +77,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  // Auth-aware data scoping: switch storage keys based on Clerk userId
+  const { isSignedIn, userId, isLoaded } = useAuth();
+  const prevUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    refreshAll();
-  }, [refreshAll]);
+    if (!isLoaded) return;
+
+    const currentUserId = isSignedIn && userId ? userId : "guest";
+
+    // Only act on actual auth state changes
+    if (prevUserIdRef.current === currentUserId) return;
+
+    // Immediately clear stale data so the old user's decks never flash on screen
+    setDecks([]);
+    setCards([]);
+    setCollections([]);
+    setDueByDeck({});
+    setLoading(true);
+
+    setUserId(currentUserId);
+
+    // Guest (or first launch with null) → signed-in user: migrate guest data first
+    const wasGuest = prevUserIdRef.current === "guest" || prevUserIdRef.current === null;
+    if (wasGuest && currentUserId !== "guest") {
+      migrateGuestDataToUser(currentUserId)
+        .then(() => refreshAll())
+        .catch((err) => {
+          console.error("Guest data migration failed:", err);
+          refreshAll();
+        });
+    } else {
+      refreshAll();
+    }
+
+    prevUserIdRef.current = currentUserId;
+  }, [isLoaded, isSignedIn, userId, refreshAll]);
 
   const createDeck = useCallback(async (name: string, dialect: "MSA" | "Egyptian") => {
     const deck = await saveDeck({ name, dialect });

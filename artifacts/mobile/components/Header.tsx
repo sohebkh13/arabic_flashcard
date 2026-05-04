@@ -16,9 +16,10 @@ import { useTheme } from "@/context/ThemeContext";
 
 interface HeaderProps {
   onLogoPress?: () => void;
+  onProfilePress?: () => void;
 }
 
-export function Header({ onLogoPress }: HeaderProps) {
+export function Header({ onLogoPress, onProfilePress }: HeaderProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -77,21 +78,31 @@ export function Header({ onLogoPress }: HeaderProps) {
 
           {/* Profile/Auth Section */}
           {isSignedIn ? (
-            <UserButton
-              afterSignOutUrl="/(auth)/sign-in"
-              appearance={{
-                elements: {
-                  avatarBox: "user-button-avatar",
-                  button: "user-button-button",
-                } as any,
-                colors: {
-                  background: colors.secondary,
-                  foreground: colors.foreground,
-                  primary: colors.primary,
-                  primaryForeground: colors.primaryForeground,
-                } as any,
-              }}
-            />
+            onProfilePress ? (
+              <TouchableOpacity
+                onPress={onProfilePress}
+                style={[styles.iconBtn, { backgroundColor: colors.secondary }]}
+                activeOpacity={0.7}
+              >
+                <Feather name="user" size={18} color={colors.foreground} />
+              </TouchableOpacity>
+            ) : (
+              <UserButton
+                afterSignOutUrl="/(auth)/sign-in"
+                appearance={{
+                  elements: {
+                    avatarBox: "user-button-avatar",
+                    button: "user-button-button",
+                  } as any,
+                  colors: {
+                    background: colors.secondary,
+                    foreground: colors.foreground,
+                    primary: colors.primary,
+                    primaryForeground: colors.primaryForeground,
+                  } as any,
+                }}
+              />
+            )
           ) : (
             <TouchableOpacity
               onPress={() => router.push("/(auth)/sign-in")}

@@ -1,4 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  getDecksKey,
+  getCardsKey,
+  getCollectionsKey,
+  getGuestDecksKey,
+  getGuestCardsKey,
+  getGuestCollectionsKey,
+  LEGACY_DECKS_KEY,
+  LEGACY_CARDS_KEY,
+  LEGACY_COLLECTIONS_KEY,
+  isGuest,
+  getUserId,
+  setUserId,
+} from "./storage-keys";
 
 export interface Deck {
   id: string;
@@ -48,9 +62,7 @@ export interface BackupData {
   collections?: Collection[];
 }
 
-const DECKS_KEY = "arabic_flashcards_decks";
-const CARDS_KEY = "arabic_flashcards_cards";
-const COLLECTIONS_KEY = "arabic_flashcards_collections";
+// Storage keys are now dynamically scoped per-user via storage-keys.ts
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -120,8 +132,20 @@ function normalizeCard(raw: unknown): Flashcard {
 
 export async function getDecks(): Promise<Deck[]> {
   try {
-    const raw = await AsyncStorage.getItem(DECKS_KEY);
-    if (!raw) return [];
+    const key = getDecksKey();
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) {
+      // Guest backward compat: auto-migrate legacy un-scoped data
+      if (isGuest()) {
+        const legacy = await AsyncStorage.getItem(LEGACY_DECKS_KEY);
+        if (legacy) {
+          await AsyncStorage.setItem(key, legacy);
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed)) return parsed.map((item) => normalizeDeck(item));
+        }
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.map((item) => normalizeDeck(item));
@@ -140,7 +164,7 @@ export async function saveDeck(deck: Omit<Deck, "id" | "createdAt" | "updatedAt"
     updatedAt: now,
   };
   decks.push(newDeck);
-  await AsyncStorage.setItem(DECKS_KEY, JSON.stringify(decks));
+  await AsyncStorage.setItem(getDecksKey(), JSON.stringify(decks));
   return newDeck;
 }
 
@@ -149,24 +173,35 @@ export async function updateDeck(id: string, updates: Partial<Omit<Deck, "id" | 
   const idx = decks.findIndex((d) => d.id === id);
   if (idx >= 0) {
     decks[idx] = { ...decks[idx], ...updates, updatedAt: Date.now() };
-    await AsyncStorage.setItem(DECKS_KEY, JSON.stringify(decks));
+    await AsyncStorage.setItem(getDecksKey(), JSON.stringify(decks));
   }
 }
 
 export async function deleteDeck(id: string): Promise<void> {
   const decks = await getDecks();
   const filtered = decks.filter((d) => d.id !== id);
-  await AsyncStorage.setItem(DECKS_KEY, JSON.stringify(filtered));
+  await AsyncStorage.setItem(getDecksKey(), JSON.stringify(filtered));
   // Also delete all cards in that deck
   const cards = await getCards();
   const filteredCards = cards.filter((c) => c.deckId !== id);
-  await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(filteredCards));
+  await AsyncStorage.setItem(getCardsKey(), JSON.stringify(filteredCards));
 }
 
 export async function getCards(): Promise<Flashcard[]> {
   try {
-    const raw = await AsyncStorage.getItem(CARDS_KEY);
-    if (!raw) return [];
+    const key = getCardsKey();
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) {
+      if (isGuest()) {
+        const legacy = await AsyncStorage.getItem(LEGACY_CARDS_KEY);
+        if (legacy) {
+          await AsyncStorage.setItem(key, legacy);
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed)) return parsed.map((item) => normalizeCard(item));
+        }
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.map((item) => normalizeCard(item));
@@ -204,7 +239,7 @@ export async function saveCard(card: Omit<Flashcard, "id" | "createdAt" | "updat
     dueDate: now,
   };
   cards.push(newCard);
-  await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
+  await AsyncStorage.setItem(getCardsKey(), JSON.stringify(cards));
   return newCard;
 }
 
@@ -217,14 +252,14 @@ export async function updateCard(id: string, updates: Partial<Flashcard>): Promi
       nextCard.customFields = normalizeCustomFields(updates.customFields);
     }
     cards[idx] = nextCard;
-    await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
+    await AsyncStorage.setItem(getCardsKey(), JSON.stringify(cards));
   }
 }
 
 export async function deleteCard(id: string): Promise<void> {
   const cards = await getCards();
   const filtered = cards.filter((c) => c.id !== id);
-  await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(filtered));
+  await AsyncStorage.setItem(getCardsKey(), JSON.stringify(filtered));
 }
 
 export async function moveCard(cardId: string, targetDeckId: string): Promise<void> {
@@ -239,14 +274,25 @@ export async function moveCard(cardId: string, targetDeckId: string): Promise<vo
       dialect: targetDeck.dialect,
       updatedAt: Date.now(),
     };
-    await AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
+    await AsyncStorage.setItem(getCardsKey(), JSON.stringify(cards));
   }
 }
 
 export async function getCollections(): Promise<Collection[]> {
   try {
-    const raw = await AsyncStorage.getItem(COLLECTIONS_KEY);
-    if (!raw) return [];
+    const key = getCollectionsKey();
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) {
+      if (isGuest()) {
+        const legacy = await AsyncStorage.getItem(LEGACY_COLLECTIONS_KEY);
+        if (legacy) {
+          await AsyncStorage.setItem(key, legacy);
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed)) return parsed.map((item) => normalizeCollection(item));
+        }
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.map((item) => normalizeCollection(item));
@@ -265,7 +311,7 @@ export async function saveCollection(collection: Omit<Collection, "id" | "create
     updatedAt: now,
   };
   collections.push(newCollection);
-  await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+  await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(collections));
   return newCollection;
 }
 
@@ -274,14 +320,14 @@ export async function updateCollection(id: string, updates: Partial<Omit<Collect
   const idx = collections.findIndex((c) => c.id === id);
   if (idx >= 0) {
     collections[idx] = { ...collections[idx], ...updates, updatedAt: Date.now() };
-    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+    await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(collections));
   }
 }
 
 export async function deleteCollection(id: string): Promise<void> {
   const collections = await getCollections();
   const filtered = collections.filter((c) => c.id !== id);
-  await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(filtered));
+  await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(filtered));
 }
 
 export async function addDeckToCollection(collectionId: string, deckId: string): Promise<void> {
@@ -291,7 +337,7 @@ export async function addDeckToCollection(collectionId: string, deckId: string):
     const deckIds = new Set(collections[idx].deckIds);
     deckIds.add(deckId);
     collections[idx] = { ...collections[idx], deckIds: Array.from(deckIds), updatedAt: Date.now() };
-    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+    await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(collections));
   }
 }
 
@@ -300,7 +346,7 @@ export async function removeDeckFromCollection(collectionId: string, deckId: str
   const idx = collections.findIndex((c) => c.id === collectionId);
   if (idx >= 0) {
     collections[idx] = { ...collections[idx], deckIds: collections[idx].deckIds.filter((id) => id !== deckId), updatedAt: Date.now() };
-    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+    await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(collections));
   }
 }
 
@@ -426,11 +472,75 @@ export async function importBackup(raw: unknown): Promise<{ importedDecks: numbe
     })
     .filter((col) => col.deckIds.length > 0);
 
-  await AsyncStorage.setItem(DECKS_KEY, JSON.stringify([...currentDecks, ...importedDecks]));
-  await AsyncStorage.setItem(CARDS_KEY, JSON.stringify([...currentCards, ...importedCards]));
+  await AsyncStorage.setItem(getDecksKey(), JSON.stringify([...currentDecks, ...importedDecks]));
+  await AsyncStorage.setItem(getCardsKey(), JSON.stringify([...currentCards, ...importedCards]));
   if (importedCollections.length > 0) {
-    await AsyncStorage.setItem(COLLECTIONS_KEY, JSON.stringify([...currentCollections, ...importedCollections]));
+    await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify([...currentCollections, ...importedCollections]));
   }
 
   return { importedDecks: importedDecks.length, importedCards: importedCards.length, importedCollections: importedCollections.length };
+}
+
+/**
+ * Migrate all guest decks/cards/collections to a signed-in user's namespace.
+ * Merges guest data with any existing user data (deduplicated by ID).
+ * After migration, guest keys are cleared.
+ */
+export async function migrateGuestDataToUser(userId: string): Promise<void> {
+  const guestDecksKey = getGuestDecksKey();
+  const guestCardsKey = getGuestCardsKey();
+  const guestCollectionsKey = getGuestCollectionsKey();
+
+  // Temporarily read as guest
+  const prevUserId = getUserId();
+  setUserId("guest");
+
+  try {
+    const guestDecksRaw = await AsyncStorage.getItem(guestDecksKey);
+    const guestCardsRaw = await AsyncStorage.getItem(guestCardsKey);
+    const guestCollectionsRaw = await AsyncStorage.getItem(guestCollectionsKey);
+
+    if (!guestDecksRaw && !guestCardsRaw && !guestCollectionsRaw) {
+      // Nothing to migrate
+      return;
+    }
+
+    const guestDecks: Deck[] = guestDecksRaw ? JSON.parse(guestDecksRaw) : [];
+    const guestCards: Flashcard[] = guestCardsRaw ? JSON.parse(guestCardsRaw) : [];
+    const guestCollections: Collection[] = guestCollectionsRaw ? JSON.parse(guestCollectionsRaw) : [];
+
+    // Switch to user context to read existing user data
+    setUserId(userId);
+
+    const userDecksRaw = await AsyncStorage.getItem(getDecksKey());
+    const userCardsRaw = await AsyncStorage.getItem(getCardsKey());
+    const userCollectionsRaw = await AsyncStorage.getItem(getCollectionsKey());
+
+    const userDecks: Deck[] = userDecksRaw ? JSON.parse(userDecksRaw) : [];
+    const userCards: Flashcard[] = userCardsRaw ? JSON.parse(userCardsRaw) : [];
+    const userCollections: Collection[] = userCollectionsRaw ? JSON.parse(userCollectionsRaw) : [];
+
+    // Merge and deduplicate by ID
+    const deckIdSet = new Set(userDecks.map((d) => d.id));
+    const mergedDecks = [...userDecks, ...guestDecks.filter((d) => !deckIdSet.has(d.id))];
+
+    const cardIdSet = new Set(userCards.map((c) => c.id));
+    const mergedCards = [...userCards, ...guestCards.filter((c) => !cardIdSet.has(c.id))];
+
+    const collectionIdSet = new Set(userCollections.map((c) => c.id));
+    const mergedCollections = [...userCollections, ...guestCollections.filter((c) => !collectionIdSet.has(c.id))];
+
+    // Save merged data under user keys
+    await AsyncStorage.setItem(getDecksKey(), JSON.stringify(mergedDecks));
+    await AsyncStorage.setItem(getCardsKey(), JSON.stringify(mergedCards));
+    await AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(mergedCollections));
+
+    // Clear guest keys
+    await AsyncStorage.removeItem(guestDecksKey);
+    await AsyncStorage.removeItem(guestCardsKey);
+    await AsyncStorage.removeItem(guestCollectionsKey);
+  } finally {
+    // Restore current user context
+    setUserId(userId);
+  }
 }

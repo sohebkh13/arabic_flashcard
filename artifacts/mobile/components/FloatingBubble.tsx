@@ -99,8 +99,6 @@ export function FloatingBubble({ initialText = "" }: { initialText?: string }) {
     router.push({ pathname: "/create-card", params: { arabic, english } });
   }
 
-  if (Platform.OS === "web") return null;
-
   const isArabicMode = direction === "ar_to_en";
 
   return (

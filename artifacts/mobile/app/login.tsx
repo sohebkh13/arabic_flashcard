@@ -36,11 +36,11 @@ export default function LoginScreen() {
     router.push("/(auth)/sign-in");
   }
 
-  async function handleSignIn() {
+  async function handleContinueAsGuest() {
     try {
       await AsyncStorage.setItem(LANDING_FLAG, "true");
     } catch {}
-    router.push("/(auth)/sign-in");
+    router.push("/(tabs)");
   }
 
   if (!isLoaded) {

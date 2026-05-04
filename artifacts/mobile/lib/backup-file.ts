@@ -20,10 +20,10 @@ function contentTypeFor(format: ExportFormat): string {
   return "application/json";
 }
 
-export function buildBackupFilename(scope: "all" | "deck", format: ExportFormat, deckName?: string): string {
+export function buildBackupFilename(scope: "all" | "deck" | "collection", format: ExportFormat, name?: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  if (scope === "deck" && deckName) {
-    const token = sanitizeFileToken(deckName) || "deck";
+  if ((scope === "deck" || scope === "collection") && name) {
+    const token = sanitizeFileToken(name) || scope;
     return `arabic-flashcards-${token}-${stamp}.${format}`;
   }
   return `arabic-flashcards-all-${stamp}.${format}`;
