@@ -7,11 +7,12 @@ import {
 import { useColors } from "@/hooks/useColors";
 
 const WELCOME_MESSAGES = [
-  "One flip. One word. One world unlocked.",
-  "Every language begins with a single card.",
-  "The world speaks many tongues. Learn one today.",
-  "A new word is a new window to the world.",
-  "Every great linguist started exactly where you are.",
+  "One flip. One card. One concept mastered.",
+  "Every subject becomes easier, one card at a time.",
+  "Knowledge sticks when you review it right.",
+  "From vocab to formulas — anything worth knowing.",
+  "Build your deck. Own the subject.",
+  "Spaced repetition: the science of never forgetting.",
 ];
 
 const TYPING_SPEED = 50; // ms per character
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
   container: {
     paddingVertical: 24,
     paddingHorizontal: 20,
-    minHeight: 100,
+    height: 120,
     justifyContent: "center",
   },
   message: {

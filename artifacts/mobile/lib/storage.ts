@@ -25,8 +25,8 @@ export interface Deck {
 export interface Flashcard {
   id: string;
   deckId: string;
-  arabic: string;
-  english: string;
+  front: string;
+  back: string;
   context: string;
   grammarNotes: string;
   dialect: "MSA" | "Egyptian";
@@ -115,8 +115,8 @@ function normalizeCard(raw: unknown): Flashcard {
   return {
     id: typeof item.id === "string" ? item.id : generateId(),
     deckId: typeof item.deckId === "string" ? item.deckId : "",
-    arabic: typeof item.arabic === "string" ? item.arabic : "",
-    english: typeof item.english === "string" ? item.english : "",
+    front: typeof item.front === "string" ? item.front : (typeof (item as Record<string, unknown>).arabic === "string" ? (item as Record<string, unknown>).arabic as string : ""),
+    back: typeof item.back === "string" ? item.back : (typeof (item as Record<string, unknown>).english === "string" ? (item as Record<string, unknown>).english as string : ""),
     context: typeof item.context === "string" ? item.context : "",
     grammarNotes: typeof item.grammarNotes === "string" ? item.grammarNotes : "",
     dialect: item.dialect === "Egyptian" ? "Egyptian" : "MSA",

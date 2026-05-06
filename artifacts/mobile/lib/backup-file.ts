@@ -1,5 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 
@@ -44,28 +44,21 @@ export async function exportTextToFile(content: string, filename: string, format
     return;
   }
 
-  const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-  if (!baseDirectory) {
-    throw new Error("No writable directory available for export");
-  }
-
-  const fileUri = `${baseDirectory}${filename}`;
-  await FileSystem.writeAsStringAsync(fileUri, content, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const file = new File(Paths.cache, filename);
+  file.write(content);
 
   const canShare = await Sharing.isAvailableAsync();
   if (!canShare) {
     throw new Error("Sharing is not available on this device");
   }
 
-  await Sharing.shareAsync(fileUri, {
+  await Sharing.shareAsync(file.uri, {
     mimeType,
     dialogTitle: "Export Flashcards Backup",
   });
 }
 
-function readWebFileText(file: File): Promise<string> {
+function readWebFileText(file: globalThis.File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Failed to read selected file"));
@@ -75,20 +68,25 @@ function readWebFileText(file: File): Promise<string> {
 }
 
 export async function pickJsonFileText(): Promise<string | null> {
+  const file = await pickImportFile();
+  return file ? file.text : null;
+}
+
+export async function pickImportFile(): Promise<{ text: string; name: string } | null> {
   if (Platform.OS === "web") {
     return new Promise((resolve) => {
       const input = document.createElement("input");
       input.type = "file";
-      input.accept = "application/json,.json,text/plain";
+      input.accept = "application/json,.json,text/plain,.txt,.tsv";
       input.onchange = async () => {
-        const file = input.files?.[0];
-        if (!file) {
+        const webFile = input.files?.[0];
+        if (!webFile) {
           resolve(null);
           return;
         }
         try {
-          const content = await readWebFileText(file);
-          resolve(content);
+          const text = await readWebFileText(webFile);
+          resolve({ text, name: webFile.name });
         } catch {
           resolve(null);
         }
@@ -98,7 +96,7 @@ export async function pickJsonFileText(): Promise<string | null> {
   }
 
   const result = await DocumentPicker.getDocumentAsync({
-    type: ["application/json", "text/plain"],
+    type: ["application/json", "text/plain", "text/tab-separated-values", "*/*"],
     copyToCacheDirectory: true,
     multiple: false,
   });
@@ -107,7 +105,8 @@ export async function pickJsonFileText(): Promise<string | null> {
     return null;
   }
 
-  return FileSystem.readAsStringAsync(result.assets[0].uri, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const asset = result.assets[0];
+  const fsFile = new File(asset.uri);
+  const text = await fsFile.text();
+  return { text, name: asset.name || "import.txt" };
 }

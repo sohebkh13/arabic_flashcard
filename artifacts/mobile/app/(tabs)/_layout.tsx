@@ -26,12 +26,12 @@ export default function TabLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
           elevation: 0,
-          height: isWeb ? 84 : 60,
+          height: isWeb ? 64 : 60,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "600",
-          marginBottom: isWeb ? 0 : 4,
+          marginBottom: isWeb ? 2 : 4,
         },
         tabBarBackground: () =>
           isIOS ? (

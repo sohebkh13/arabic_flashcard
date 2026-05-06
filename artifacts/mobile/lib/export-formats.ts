@@ -31,8 +31,8 @@ function buildRows(data: BackupData): { headers: string[]; rows: string[][] } {
   const headers = [
     "deck",
     "deck_dialect",
-    "arabic",
-    "english",
+    "front",
+    "back",
     "context",
     "grammar_notes",
     "card_dialect",
@@ -50,8 +50,8 @@ function buildRows(data: BackupData): { headers: string[]; rows: string[][] } {
     return [
       deckNameMap.get(card.deckId) || "",
       deckDialectMap.get(card.deckId) || "",
-      normalizeValue(card.arabic),
-      normalizeValue(card.english),
+      normalizeValue(card.front),
+      normalizeValue(card.back),
       normalizeValue(card.context),
       normalizeValue(card.grammarNotes),
       normalizeValue(card.dialect),

@@ -25,105 +25,130 @@ export function DeckCard({ deck, cardCount, dueCount, addedLabel, updatedLabel }
 
   function handleReview() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({ 
-      pathname: "/review", 
-      params: { deckId: deck.id, mode: dueCount > 0 ? "review" : "revision" } 
+    router.push({
+      pathname: "/review",
+      params: { deckId: deck.id, mode: dueCount > 0 ? "review" : "revision" },
     });
   }
 
+  const accentColor = dueCount > 0 ? colors.primary : (colors.success ?? "#4caf7d");
+
   return (
     <Pressable
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.foreground,
+        },
+      ]}
       onPress={handlePress}
     >
-      <View style={styles.cardInner}>
-        <View style={styles.cardContent}>
-          <View style={styles.top}>
-            <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
-              {deck.name}
-            </Text>
-            <View style={[styles.dialectBadge, { backgroundColor: colors.secondary }]}>
-              <Text style={[styles.dialectText, { color: colors.mutedForeground }]}>{deck.dialect}</Text>
+      {/* Left accent bar */}
+      <View style={[styles.accent, { backgroundColor: accentColor }]} />
+
+      {/* Main content column: body + review button */}
+      <View style={styles.mainContent}>
+        <View style={styles.cardBody}>
+          <View style={styles.cardContent}>
+            <View style={styles.top}>
+              <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+                {deck.name}
+              </Text>
+              <View style={[styles.dialectBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                <Text style={[styles.dialectText, { color: colors.mutedForeground }]}>{deck.dialect}</Text>
+              </View>
+            </View>
+
+            <View style={styles.bottom}>
+              <View style={styles.stat}>
+                <Feather name="layers" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.statText, { color: colors.mutedForeground }]}>{cardCount} cards</Text>
+              </View>
+              {dueCount > 0 ? (
+                <View style={[styles.dueBadge, { backgroundColor: colors.primary + "22" }]}>
+                  <View style={[styles.dueDot, { backgroundColor: colors.primary }]} />
+                  <Text style={[styles.dueText, { color: colors.primary }]}>{dueCount} due</Text>
+                </View>
+              ) : (
+                <View style={[styles.doneBadge, { backgroundColor: (colors.success ?? "#4caf7d") + "18" }]}>
+                  <Feather name="check-circle" size={12} color={colors.success ?? "#4caf7d"} />
+                  <Text style={[styles.doneText, { color: colors.success ?? "#4caf7d" }]}>Up to date</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.metaRow}>
+              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Added {addedLabel}</Text>
+              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Updated {updatedLabel}</Text>
             </View>
           </View>
 
-          <View style={styles.bottom}>
-            <View style={styles.stat}>
-              <Feather name="layers" size={14} color={colors.mutedForeground} />
-              <Text style={[styles.statText, { color: colors.mutedForeground }]}>{cardCount} cards</Text>
-            </View>
-            {dueCount > 0 ? (
-              <View style={[styles.dueBadge, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.dueText, { color: colors.primaryForeground }]}>
-                  {dueCount} due
-                </Text>
-              </View>
-            ) : (
-              <View style={[styles.doneBadge, { backgroundColor: (colors.success || "#4caf7d") + "22" }]}>
-                <Feather name="check" size={12} color={colors.success || "#4caf7d"} />
-                <Text style={[styles.doneText, { color: colors.success || "#4caf7d" }]}>Up to date</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.metaRow}>
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Added {addedLabel}</Text>
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Updated {updatedLabel}</Text>
-          </View>
+          <Feather name="chevron-right" size={17} color={colors.mutedForeground} style={{ opacity: 0.5 }} />
         </View>
 
-        <View style={styles.chevronWrap}>
-          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-        </View>
-      </View>
-
-      {/* Review button */}
-      {cardCount > 0 && (
-        <Pressable
-          style={[
-            styles.reviewBtn,
-            dueCount > 0
-              ? { backgroundColor: colors.primary }
-              : { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border },
-          ]}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleReview();
-          }}
-        >
-          <Feather
-            name="zap"
-            size={14}
-            color={dueCount > 0 ? colors.primaryForeground : colors.mutedForeground}
-          />
-          <Text
+        {/* Review button — full width at the bottom */}
+        {cardCount > 0 && (
+          <Pressable
             style={[
-              styles.reviewBtnText,
-              { color: dueCount > 0 ? colors.primaryForeground : colors.mutedForeground },
+              styles.reviewBtn,
+              dueCount > 0
+                ? { backgroundColor: accentColor }
+                : { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border },
             ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleReview();
+            }}
           >
-            {dueCount > 0 ? `Review now · ${dueCount} due` : "Review all"}
-          </Text>
-        </Pressable>
-      )}
+            <Feather
+              name="zap"
+              size={13}
+              color={dueCount > 0 ? colors.primaryForeground : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.reviewBtnText,
+                { color: dueCount > 0 ? colors.primaryForeground : colors.mutedForeground },
+              ]}
+            >
+              {dueCount > 0 ? `Review now · ${dueCount} due` : "Review all"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 16,
-    gap: 12,
+    overflow: "hidden",
+    flexDirection: "row",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  cardInner: {
+  accent: {
+    width: 4,
+  },
+  mainContent: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  cardBody: {
+    padding: 14,
+    gap: 12,
     flexDirection: "row",
     alignItems: "center",
   },
   cardContent: {
     flex: 1,
-    gap: 10,
+    gap: 9,
   },
   top: {
     flexDirection: "row",
@@ -137,13 +162,14 @@ const styles = StyleSheet.create({
   },
   dialectBadge: {
     borderRadius: 6,
+    borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   dialectText: {
     fontSize: 11,
     fontWeight: "600",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   bottom: {
     flexDirection: "row",
@@ -162,7 +188,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
   },
   metaText: {
     fontSize: 11,
@@ -172,6 +197,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  dueDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   dueText: {
     fontSize: 12,
@@ -189,13 +222,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  chevronWrap: {
-    paddingLeft: 8,
-    justifyContent: "center",
-  },
   reviewBtn: {
+    marginHorizontal: 14,
+    marginBottom: 12,
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 9,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,8 +16,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArabicText } from "@/components/ArabicText";
 import { useApp } from "@/context/AppContext";
+
+const ARABIC_RE = /[؀-ۿ]/;
+function isArabic(text?: string) { return !!text && ARABIC_RE.test(text); }
 import { useColors } from "@/hooks/useColors";
 import { Flashcard } from "@/lib/storage";
 import { ReviewGrade, sm2Review } from "@/lib/sm2";
@@ -176,56 +179,81 @@ export default function ReviewScreen() {
         <TouchableOpacity
           style={[styles.flipCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={handleFlip}
-          activeOpacity={0.92}
+          activeOpacity={flipped ? 1 : 0.92}
         >
-          {/* Conditionally render front or back to avoid absolute positioning collapse on native */}
           {!showBack ? (
-            <Animated.View style={[styles.cardFace, frontStyle]}>
+            <Animated.View style={[styles.cardFaceFront, frontStyle]}>
               <Text style={[styles.tapHint, { color: colors.mutedForeground }]}>Tap to reveal</Text>
-              <ArabicText size="hero" color={colors.foreground}>
-                {current?.arabic}
-              </ArabicText>
+              <Text
+                style={[
+                  styles.frontText,
+                  isArabic(current?.front) && styles.rtlText,
+                  { color: colors.foreground },
+                ]}
+              >
+                {current?.front}
+              </Text>
               <View style={styles.listenWrapFront}>
-                <ListenButton text={current?.arabic} language="ar" size={24} />
-              </View>
-              <View style={[styles.dialectPill, { backgroundColor: colors.secondary }]}>
-                <Text style={[styles.dialectPillText, { color: colors.mutedForeground }]}>
-                  {current?.dialect}
-                </Text>
+                <ListenButton
+                  text={current?.front}
+                  language={isArabic(current?.front) ? "ar" : "en"}
+                  size={24}
+                />
               </View>
             </Animated.View>
           ) : (
-            <Animated.View style={[styles.cardFace, backStyle]}>
-              <View style={styles.backHeader}>
-                <Text style={[styles.arabicSmall, { color: colors.mutedForeground }]}>
-                  {current?.arabic}
-                </Text>
-                <ListenButton text={current?.arabic} language="ar" size={16} />
-              </View>
-              <View style={styles.backMain}>
-                <Text style={[styles.englishMain, { color: colors.foreground }]}>
-                  {current?.english}
-                </Text>
-                <ListenButton text={current?.english} language="en" size={20} />
-              </View>
-              {current?.grammarNotes ? (
-                <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
-                  <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Grammar</Text>
-                  <Text style={[styles.notesText, { color: colors.foreground }]}>{current.grammarNotes}</Text>
+            <Animated.View style={[styles.cardFaceBack, backStyle]}>
+              <ScrollView
+                contentContainerStyle={styles.backScrollContent}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+              >
+                <View style={styles.backHeader}>
+                  <Text
+                    style={[
+                      styles.frontSmall,
+                      isArabic(current?.front) && styles.rtlText,
+                      { color: colors.mutedForeground },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {current?.front}
+                  </Text>
+                  <ListenButton
+                    text={current?.front}
+                    language={isArabic(current?.front) ? "ar" : "en"}
+                    size={16}
+                  />
                 </View>
-              ) : null}
-              {current?.context ? (
-                <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
-                  <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Context</Text>
-                  <Text style={[styles.notesText, { color: colors.foreground }]}>{current.context}</Text>
+                <View style={styles.backMain}>
+                  <Text style={[styles.backText, isArabic(current?.back) && styles.rtlText, { color: colors.foreground }]}>
+                    {current?.back}
+                  </Text>
+                  <ListenButton
+                    text={current?.back}
+                    language={isArabic(current?.back) ? "ar" : "en"}
+                    size={20}
+                  />
                 </View>
-              ) : null}
-              {(current?.customFields || []).map((field) => (
-                <View key={field.id} style={[styles.notesBox, { backgroundColor: colors.secondary }]}> 
-                  <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>{field.name}</Text>
-                  <Text style={[styles.notesText, { color: colors.foreground }]}>{field.value}</Text>
-                </View>
-              ))}
+                {current?.grammarNotes ? (
+                  <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Notes</Text>
+                    <Text style={[styles.notesText, { color: colors.foreground }]}>{current.grammarNotes}</Text>
+                  </View>
+                ) : null}
+                {current?.context ? (
+                  <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>Context</Text>
+                    <Text style={[styles.notesText, { color: colors.foreground }]}>{current.context}</Text>
+                  </View>
+                ) : null}
+                {(current?.customFields || []).map((field) => (
+                  <View key={field.id} style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
+                    <Text style={[styles.notesLabel, { color: colors.mutedForeground }]}>{field.name}</Text>
+                    <Text style={[styles.notesText, { color: colors.foreground }]}>{field.value}</Text>
+                  </View>
+                ))}
+              </ScrollView>
             </Animated.View>
           )}
         </TouchableOpacity>
@@ -284,26 +312,33 @@ const styles = StyleSheet.create({
   cardArea: {
     flex: 1,
     padding: 20,
-    gap: 20,
-    justifyContent: "center",
+    gap: 16,
   },
   flipCard: {
+    flex: 1,
     borderRadius: 20,
     borderWidth: 1,
-    minHeight: 280,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 28,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 4,
   },
-  cardFace: {
+  cardFaceFront: {
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
     gap: 16,
-    width: "100%",
+    padding: 28,
+  },
+  cardFaceBack: {
+    flex: 1,
+  },
+  backScrollContent: {
+    padding: 20,
+    gap: 16,
+    alignItems: "center",
   },
   tapHint: { fontSize: 13, fontWeight: "500" },
   dialectPill: {
@@ -315,6 +350,10 @@ const styles = StyleSheet.create({
   listenWrapFront: { marginTop: -4 },
   backHeader: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   backMain: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" },
+  frontText: { fontSize: 40, fontWeight: "800", textAlign: "center", letterSpacing: 0.5 },
+  rtlText: { textAlign: "right", writingDirection: "rtl" },
+  frontSmall: { fontSize: 18, textAlign: "center" },
+  backText: { fontSize: 28, fontWeight: "700", textAlign: "center" },
   arabicSmall: { fontSize: 20, textAlign: "right", writingDirection: "rtl" },
   englishMain: { fontSize: 28, fontWeight: "700", textAlign: "center" },
   notesBox: { borderRadius: 10, padding: 12, alignSelf: "stretch", gap: 4 },

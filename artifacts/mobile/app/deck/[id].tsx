@@ -37,8 +37,8 @@ export default function DeckScreen() {
   const [collectionModal, setCollectionModal] = useState(false);
   const [busyCollectionId, setBusyCollectionId] = useState<string | null>(null);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const topPad = Platform.OS === "web" ? 16 : insets.top;
+  const bottomPad = Platform.OS === "web" ? 16 : insets.bottom;
   const deckCollections = collections.filter((collection) => collection.deckIds.includes(deck?.id || ""));
   const availableCollections = collections;
 
@@ -103,14 +103,14 @@ export default function DeckScreen() {
 
   async function handleDeleteCard(card: Flashcard) {
     if (Platform.OS === "web") {
-      const confirmed = window.confirm(`Delete "${card.arabic}"?`);
+      const confirmed = window.confirm(`Delete "${card.front}"?`);
       if (confirmed) {
         await removeCard(card.id);
       }
       return;
     }
 
-    Alert.alert("Delete Card", `Delete "${card.arabic}"?`, [
+    Alert.alert("Delete Card", `Delete "${card.front}"?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => removeCard(card.id) },
     ]);
@@ -200,15 +200,15 @@ export default function DeckScreen() {
             <View style={styles.cardMain}>
               <View style={styles.wordRow}>
                 <Text style={[styles.arabicWord, { color: colors.foreground }]} numberOfLines={1}>
-                  {item.arabic}
+                  {item.front}
                 </Text>
-                <CopyButton text={item.arabic} size={14} />
+                <CopyButton text={item.front} size={14} />
               </View>
               <View style={styles.wordRow}>
                 <Text style={[styles.englishWord, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  {item.english}
+                  {item.back}
                 </Text>
-                <CopyButton text={item.english} size={14} />
+                <CopyButton text={item.back} size={14} />
               </View>
             </View>
             <Pressable

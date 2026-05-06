@@ -13,13 +13,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArabicText } from "@/components/ArabicText";
 import { CopyButton } from "@/components/CopyButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+
+const ARABIC_RE = /[؀-ۿ]/;
+function isArabic(text?: string) { return !!text && ARABIC_RE.test(text); }
 
 interface CustomFieldDraft {
   id: string;
@@ -44,8 +46,8 @@ export default function CardDetailScreen() {
 
   const card = cards.find((c) => c.id === id);
   const [editing, setEditing] = useState(false);
-  const [arabic, setArabic] = useState(card?.arabic || "");
-  const [english, setEnglish] = useState(card?.english || "");
+  const [front, setFront] = useState(card?.front || "");
+  const [back, setBack] = useState(card?.back || "");
   const [context, setContext] = useState(card?.context || "");
   const [grammarNotes, setGrammarNotes] = useState(card?.grammarNotes || "");
   const [dialect, setDialect] = useState<"MSA" | "Egyptian">(card?.dialect || "MSA");
@@ -58,8 +60,8 @@ export default function CardDetailScreen() {
   );
   const [moveModal, setMoveModal] = useState(false);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const topPad = Platform.OS === "web" ? 16 : insets.top;
+  const bottomPad = Platform.OS === "web" ? 16 : insets.bottom;
 
   if (!card) {
     return (
@@ -81,7 +83,7 @@ export default function CardDetailScreen() {
       }))
       .filter((field) => field.name.length > 0 && field.value.length > 0);
 
-    await editCard(card!.id, { arabic, english, context, grammarNotes, dialect, customFields: normalizedCustomFields });
+    await editCard(card!.id, { front, back, context, grammarNotes, dialect, customFields: normalizedCustomFields });
     setEditing(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
@@ -144,20 +146,21 @@ export default function CardDetailScreen() {
         {editing ? (
           <>
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Arabic</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Front</Text>
               <TextInput
-                value={arabic}
-                onChangeText={setArabic}
-                style={[styles.input, styles.arabicInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-                textAlign="right"
+                value={front}
+                onChangeText={setFront}
+                style={[styles.input, isArabic(front) && styles.arabicInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                textAlign={isArabic(front) ? "right" : "left"}
               />
             </View>
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>English</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Back</Text>
               <TextInput
-                value={english}
-                onChangeText={setEnglish}
-                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                value={back}
+                onChangeText={setBack}
+                style={[styles.input, isArabic(back) && styles.arabicInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
+                textAlign={isArabic(back) ? "right" : "left"}
               />
             </View>
             <View style={styles.field}>
@@ -183,7 +186,7 @@ export default function CardDetailScreen() {
             </View>
             <View style={styles.field}>
               <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes</Text>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>Notes</Text>
                 <View style={styles.labelActions}>
                   <CopyButton text={grammarNotes} size={15} />
                   <MicButton
@@ -265,17 +268,34 @@ export default function CardDetailScreen() {
         ) : (
           <>
             <View style={[styles.arabicCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <ArabicText size="hero" color={colors.foreground}>{card.arabic}</ArabicText>
+              <Text
+                style={[
+                  styles.frontHero,
+                  isArabic(card.front) && styles.rtlText,
+                  { color: colors.foreground },
+                ]}
+              >
+                {card.front}
+              </Text>
               <View style={styles.listenWrap}>
-                <ListenButton text={card.arabic} language="ar" size={24} />
+                <ListenButton text={card.front} language={isArabic(card.front) ? "ar" : "en"} size={24} />
               </View>
             </View>
             <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Translation</Text>
+                <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Back</Text>
                 <View style={styles.translationRow}>
-                  <Text style={[styles.infoValue, styles.englishValue, { color: colors.foreground }]}>{card.english}</Text>
-                  <ListenButton text={card.english} language="en" size={18} />
+                  <Text
+                    style={[
+                      styles.infoValue,
+                      styles.backValue,
+                      isArabic(card.back) && styles.rtlText,
+                      { color: colors.foreground },
+                    ]}
+                  >
+                    {card.back}
+                  </Text>
+                  <ListenButton text={card.back} language={isArabic(card.back) ? "ar" : "en"} size={18} />
                 </View>
               </View>
               {card.context ? (
@@ -286,7 +306,7 @@ export default function CardDetailScreen() {
               ) : null}
               {card.grammarNotes ? (
                 <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Grammar</Text>
+                  <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Notes</Text>
                   <Text style={[styles.infoValue, { color: colors.foreground }]}>{card.grammarNotes}</Text>
                 </View>
               ) : null}
@@ -356,13 +376,15 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: "row", gap: 18 },
   content: { padding: 20, gap: 16 },
   arabicCard: { borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", justifyContent: "center", minHeight: 160, gap: 12 },
+  frontHero: { fontSize: 38, fontWeight: "800", textAlign: "center", letterSpacing: 0.5 },
+  rtlText: { textAlign: "right", writingDirection: "rtl" },
   listenWrap: { marginTop: 4 },
   infoCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   infoRow: { padding: 16, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(128,128,128,0.2)" },
   translationRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   infoLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   infoValue: { fontSize: 16, lineHeight: 24 },
-  englishValue: { fontWeight: "600", fontSize: 18 },
+  backValue: { fontWeight: "600", fontSize: 18 },
   metaCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   metaRow: { padding: 14, flexDirection: "row", justifyContent: "space-between", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(128,128,128,0.2)" },
   metaLabel: { fontSize: 14 },

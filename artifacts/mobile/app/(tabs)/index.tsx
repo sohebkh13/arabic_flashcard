@@ -1,7 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
   Alert,
@@ -10,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,7 +19,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DeckCard } from "@/components/DeckCard";
 import { CollectionCard } from "@/components/CollectionCard";
-import { FloatingBubble } from "@/components/FloatingBubble";
 import { Header } from "@/components/Header";
 import { AnimatedWelcomeMessage } from "@/components/AnimatedWelcomeMessage";
 import { useApp } from "@/context/AppContext";
@@ -29,9 +28,10 @@ import {
   buildBackupFilename,
   exportTextToFile,
   ExportFormat,
-  pickJsonFileText,
+  pickImportFile,
 } from "@/lib/backup-file";
 import { backupToCsv, backupToTxt } from "@/lib/export-formats";
+import { parseAnkiTxt } from "@/lib/anki-import";
 
 const ALL_DECKS_EXPORT_ID = "__all__";
 
@@ -48,7 +48,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { decks, cards, collections, dueByDeck, loading, createDeck, createCollection, exportBackup, importBackupData } = useApp();
+  const { decks, cards, collections, dueByDeck, loading, createDeck, createCollection, exportBackup, importBackupData, addDeckToCollectionMut } = useApp();
 
   const [seenLanding, setSeenLanding] = useState<boolean | null>(null);
   const [forceBrowseView, setForceBrowseView] = useState(false);
@@ -60,27 +60,9 @@ export default function HomeScreen() {
       .catch(() => setSeenLanding(false));
   }, []);
 
-  // Re-read landing flag whenever this screen regains focus
-  useFocusEffect(
-    React.useCallback(() => {
-      let mounted = true;
-      AsyncStorage.getItem("tarjim_seen_landing")
-        .then((v) => {
-          if (!mounted) return;
-          setSeenLanding(v === "true");
-        })
-        .catch(() => {
-          if (!mounted) return;
-          setSeenLanding(false);
-        });
-      return () => {
-        mounted = false;
-      };
-    }, [])
-  );
-
-  const [modalVisible, setModalVisible] = useState(false);
+const [modalVisible, setModalVisible] = useState(false);
   const [newDeckName, setNewDeckName] = useState("");
+  const [newDeckCollectionIds, setNewDeckCollectionIds] = useState<string[]>([]);
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [exportModalVisible, setExportModalVisible] = useState(false);
@@ -94,7 +76,7 @@ export default function HomeScreen() {
   const totalDue = Object.values(dueByDeck).reduce((a, b) => a + b, 0);
   const totalCards = cards.length;
 
-  const bottomPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 60;
+  const bottomPad = Platform.OS === "web" ? 64 : insets.bottom + 60;
 
   // Get decks not in any collection
   const deckIdsInCollections = new Set(collections.flatMap((c) => c.deckIds));
@@ -102,10 +84,16 @@ export default function HomeScreen() {
 
   function openModal() {
     setNewDeckName("");
+    setNewDeckCollectionIds([]);
     setModalVisible(true);
-    // Mark landing as seen when user starts creating a deck
     AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
     setSeenLanding(true);
+  }
+
+  function toggleNewDeckCollection(colId: string) {
+    setNewDeckCollectionIds((prev) =>
+      prev.includes(colId) ? prev.filter((x) => x !== colId) : [...prev, colId]
+    );
   }
 
   function openCollectionModal() {
@@ -125,10 +113,14 @@ export default function HomeScreen() {
   async function handleCreateDeck() {
     if (!newDeckName.trim()) return;
     setCreating(true);
-    await createDeck(newDeckName.trim(), "MSA");
+    const newDeck = await createDeck(newDeckName.trim(), "MSA");
+    for (const colId of newDeckCollectionIds) {
+      await addDeckToCollectionMut(colId, newDeck.id);
+    }
     setCreating(false);
     setModalVisible(false);
     setNewDeckName("");
+    setNewDeckCollectionIds([]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
@@ -188,20 +180,34 @@ export default function HomeScreen() {
   }
 
   async function runImport() {
-    const text = await pickJsonFileText();
-    if (!text) return;
-    
+    const file = await pickImportFile();
+    if (!file) return;
+
     try {
       setBusyTransfer(true);
-      const parsed = JSON.parse(text);
-      const result = await importBackupData(parsed);
+
+      let importPayload: unknown;
+      const isJson = file.name.toLowerCase().endsWith(".json");
+
+      if (isJson) {
+        importPayload = JSON.parse(file.text);
+      } else {
+        // Try JSON first; if it fails, treat as Anki TXT/TSV
+        try {
+          importPayload = JSON.parse(file.text);
+        } catch {
+          const deckName = file.name.replace(/\.[^.]+$/, "").trim() || "Imported Deck";
+          importPayload = parseAnkiTxt(file.text, deckName);
+        }
+      }
+
+      const result = await importBackupData(importPayload);
       const parts = [`Imported ${result.importedDecks} deck(s)`, `${result.importedCards} card(s)`];
       if (result.importedCollections > 0) {
         parts.push(`${result.importedCollections} collection(s)`);
       }
       Alert.alert("Import complete", parts.join(", "));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // If user imported data, mark landing as seen
       AsyncStorage.setItem("tarjim_seen_landing", "true").catch(() => {});
       setSeenLanding(true);
     } catch (error) {
@@ -234,64 +240,72 @@ export default function HomeScreen() {
         <>
           {/* Landing Section (shown on first visit unless the user explicitly browses past it) */}
           {!forceBrowseView && (seenLanding === false || (decks.length === 0 && collections.length === 0)) ? (
-            <View style={styles.fullScroll}>
+            <ScrollView
+              style={styles.fullScroll}
+              contentContainerStyle={styles.fullScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               <AnimatedWelcomeMessage />
 
-              {/* Logo/Branding */}
+              {/* Branding */}
               <View style={styles.brandingSection}>
-                <Feather name="bookmark" size={56} color={colors.primary} />
+                <View style={[styles.brandingIconWrap, { backgroundColor: colors.primary + "18" }]}>
+                  <Feather name="bookmark" size={40} color={colors.primary} />
+                </View>
+                <Text style={[styles.brandingTitle, { color: colors.foreground }]}>Tarjim</Text>
                 <Text style={[styles.brandingText, { color: colors.mutedForeground }]}>
-                  Start building your Arabic vocabulary today
+                  Learn anything with spaced repetition flashcards
                 </Text>
               </View>
 
               {/* Quick Actions */}
               <View style={styles.quickActionsContainer}>
                 <TouchableOpacity
-                  style={[styles.quickActionBtn, { backgroundColor: colors.primary }]}
+                  style={[styles.quickActionBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
                   onPress={openModal}
                   activeOpacity={0.8}
                 >
-                  <Feather name="plus-circle" size={24} color={colors.primaryForeground} />
-                  <View>
-                    <Text style={[styles.quickActionTitle, { color: colors.primaryForeground }]}>
-                      Create Deck
-                    </Text>
-                    <Text style={[styles.quickActionSubtitle, { color: colors.primaryForeground + "CC" }]}>
-                      Start a new vocabulary deck
-                    </Text>
+                  <View style={[styles.quickActionIcon, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
+                    <Feather name="plus-circle" size={22} color={colors.primaryForeground} />
                   </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.quickActionTitle, { color: colors.primaryForeground }]}>Create Deck</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: colors.primaryForeground + "CC" }]}>Start a new vocabulary deck</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={colors.primaryForeground + "99"} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.quickActionBtn, { backgroundColor: colors.secondary }]}
+                  style={[styles.quickActionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
                   onPress={handleBrowsePress}
                   activeOpacity={0.8}
                 >
-                  <Feather name="layers" size={24} color={colors.foreground} />
-                  <View>
+                  <View style={[styles.quickActionIcon, { backgroundColor: colors.secondary }]}>
+                    <Feather name="layers" size={22} color={colors.foreground} />
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>Browse</Text>
                     <Text style={[styles.quickActionSubtitle, { color: colors.mutedForeground }]}>View decks & collections</Text>
                   </View>
+                  <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.quickActionBtn, { backgroundColor: colors.secondary }]}
+                  style={[styles.quickActionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
                   onPress={openCollectionModal}
                   activeOpacity={0.8}
                 >
-                  <Feather name="folder-plus" size={24} color={colors.foreground} />
-                  <View>
-                    <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>
-                      Create Collection
-                    </Text>
-                    <Text style={[styles.quickActionSubtitle, { color: colors.mutedForeground }]}>
-                      Group related decks
-                    </Text>
+                  <View style={[styles.quickActionIcon, { backgroundColor: colors.secondary }]}>
+                    <Feather name="folder-plus" size={22} color={colors.foreground} />
                   </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>Create Collection</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: colors.mutedForeground }]}>Group related decks</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           ) : (
             <View style={{ flex: 1 }}>
               {/* Stats Overview */}
@@ -474,6 +488,35 @@ export default function HomeScreen() {
               returnKeyType="done"
               onSubmitEditing={handleCreateDeck}
             />
+
+            {collections.length > 0 && (
+              <View style={styles.newDeckCollSection}>
+                <Text style={[styles.newDeckCollLabel, { color: colors.mutedForeground }]}>ADD TO COLLECTION</Text>
+                <View style={styles.newDeckCollPills}>
+                  {collections.map((col) => {
+                    const active = newDeckCollectionIds.includes(col.id);
+                    return (
+                      <TouchableOpacity
+                        key={col.id}
+                        style={[
+                          styles.collPill,
+                          {
+                            backgroundColor: active ? colors.primary + "22" : colors.secondary,
+                            borderColor: active ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => toggleNewDeckCollection(col.id)}
+                      >
+                        <Feather name={active ? "check" : "plus"} size={12} color={active ? colors.primary : colors.mutedForeground} />
+                        <Text style={[styles.collPillText, { color: active ? colors.primary : colors.foreground }]} numberOfLines={1}>
+                          {col.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -789,43 +832,66 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   /* Landing page styles */
-  fullScroll: {
-    flex: 1,
-  },
+  fullScroll: { flex: 1 },
+  fullScrollContent: { flexGrow: 1, paddingBottom: 40 },
   brandingSection: {
     paddingHorizontal: 20,
-    paddingVertical: 32,
+    paddingVertical: 28,
     alignItems: "center",
-    gap: 12,
+    gap: 10,
+  },
+  brandingIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  brandingTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   brandingText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "500",
     textAlign: "center",
-    lineHeight: 24,
-    maxWidth: "85%",
+    lineHeight: 22,
+    maxWidth: "80%",
   },
   quickActionsContainer: {
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 10,
     paddingBottom: 32,
   },
   quickActionBtn: {
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingVertical: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 14,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  quickActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
   quickActionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   quickActionSubtitle: {
     fontSize: 13,
-    opacity: 0.8,
+    fontWeight: "500",
   },
   /* Stats styles */
   statsContainer: {
@@ -877,4 +943,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  newDeckCollSection: { gap: 8 },
+  newDeckCollLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
+  newDeckCollPills: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  collPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  collPillText: { fontSize: 13, fontWeight: "600", maxWidth: 120 },
 });

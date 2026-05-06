@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useAuth } from "@clerk/clerk-expo";
 import { setUserId } from "@/lib/storage-keys";
 import { migrateGuestDataToUser } from "@/lib/storage";
+import { pullFromServer, pushToServer } from "@/lib/syncService";
 import {
   BackupData,
   Collection,
@@ -78,7 +79,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Auth-aware data scoping: switch storage keys based on Clerk userId
-  const { isSignedIn, userId, isLoaded } = useAuth();
+  const { isSignedIn, userId, isLoaded, getToken } = useAuth();
   const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -98,58 +99,91 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setUserId(currentUserId);
 
+    const doSync = async () => {
+      if (isSignedIn && currentUserId !== "guest") {
+        try {
+          const token = await getToken();
+          if (token) {
+            await pullFromServer(token);
+          }
+        } catch (err) {
+          console.error("Sync pull failed:", err);
+        }
+      }
+      await refreshAll();
+      if (isSignedIn && currentUserId !== "guest") {
+        getToken()
+          .then((token) => { if (token) pushToServer(token).catch(console.error); })
+          .catch(console.error);
+      }
+    };
+
     // Guest (or first launch with null) → signed-in user: migrate guest data first
     const wasGuest = prevUserIdRef.current === "guest" || prevUserIdRef.current === null;
     if (wasGuest && currentUserId !== "guest") {
       migrateGuestDataToUser(currentUserId)
-        .then(() => refreshAll())
+        .then(doSync)
         .catch((err) => {
           console.error("Guest data migration failed:", err);
-          refreshAll();
+          doSync().catch(console.error);
         });
     } else {
-      refreshAll();
+      doSync().catch(console.error);
     }
 
     prevUserIdRef.current = currentUserId;
-  }, [isLoaded, isSignedIn, userId, refreshAll]);
+  }, [isLoaded, isSignedIn, userId, refreshAll, getToken]);
+
+  const syncInBackground = useCallback(() => {
+    if (!isSignedIn) return;
+    getToken()
+      .then((token) => { if (token) pushToServer(token).catch(console.error); })
+      .catch(console.error);
+  }, [isSignedIn, getToken]);
 
   const createDeck = useCallback(async (name: string, dialect: "MSA" | "Egyptian") => {
     const deck = await saveDeck({ name, dialect });
     await refreshAll();
+    syncInBackground();
     return deck;
-  }, [refreshAll]);
+  }, [refreshAll, syncInBackground]);
 
   const editDeck = useCallback(async (id: string, name: string, dialect: "MSA" | "Egyptian") => {
     await updateDeck(id, { name, dialect });
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const removeDeck = useCallback(async (id: string) => {
     await deleteDeck(id);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const createCard = useCallback(async (card: Omit<Flashcard, "id" | "createdAt" | "updatedAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">) => {
     const newCard = await saveCard(card);
     await refreshAll();
+    syncInBackground();
     return newCard;
-  }, [refreshAll]);
+  }, [refreshAll, syncInBackground]);
 
   const editCard = useCallback(async (id: string, updates: Partial<Flashcard>) => {
     await updateCard(id, updates);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const removeCard = useCallback(async (id: string) => {
     await deleteCard(id);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const transferCard = useCallback(async (cardId: string, targetDeckId: string) => {
     await moveCard(cardId, targetDeckId);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const exportBackup = useCallback(async (deckId?: string, collectionId?: string) => {
     return buildBackup(deckId, collectionId);
@@ -158,34 +192,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const importBackupData = useCallback(async (raw: unknown) => {
     const result = await importBackup(raw);
     await refreshAll();
+    syncInBackground();
     return result;
-  }, [refreshAll]);
+  }, [refreshAll, syncInBackground]);
 
   const createCollection = useCallback(async (name: string) => {
     const collection = await saveCollection({ name, deckIds: [] });
     await refreshAll();
+    syncInBackground();
     return collection;
-  }, [refreshAll]);
+  }, [refreshAll, syncInBackground]);
 
   const editCollection = useCallback(async (id: string, name: string) => {
     await updateCollection(id, { name });
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const removeCollection = useCallback(async (id: string) => {
     await deleteCollection(id);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const addDeckToCollectionMut = useCallback(async (collectionId: string, deckId: string) => {
     await addDeckToCollection(collectionId, deckId);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   const removeDeckFromCollectionMut = useCallback(async (collectionId: string, deckId: string) => {
     await removeDeckFromCollection(collectionId, deckId);
     await refreshAll();
-  }, [refreshAll]);
+    syncInBackground();
+  }, [refreshAll, syncInBackground]);
 
   return (
     <AppContext.Provider

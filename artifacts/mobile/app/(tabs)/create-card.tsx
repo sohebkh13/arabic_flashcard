@@ -34,54 +34,72 @@ function createDraftField(): CustomFieldDraft {
   };
 }
 
+const ARABIC_RE = /[؀-ۿ]/;
+function hasArabic(text: string) { return ARABIC_RE.test(text); }
+
 export default function CreateCardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ arabic?: string; english?: string; deckId?: string }>();
+  // Accept both old (arabic/english) and new (front/back) params for backward compat
+  const params = useLocalSearchParams<{ front?: string; back?: string; arabic?: string; english?: string; deckId?: string }>();
   const { decks, createCard, createDeck } = useApp();
 
-  const [arabic, setArabic] = useState(params.arabic || "");
-  const [english, setEnglish] = useState(params.english || "");
+  const [front, setFront] = useState(params.front || params.arabic || "");
+  const [back, setBack] = useState(params.back || params.english || "");
   const [newDeckName, setNewDeckName] = useState("");
   const [context, setContext] = useState("");
-  const [grammarNotes, setGrammarNotes] = useState("");
+  const [notes, setNotes] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDraft[]>([]);
-  const [selectedDeckId, setSelectedDeckId] = useState(params.deckId || (decks[0]?.id ?? ""));
+  const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>(
+    params.deckId ? [params.deckId] : []
+  );
   const [saving, setSaving] = useState(false);
-  const [normalizingArabic, setNormalizingArabic] = useState(false);
+  const [normalizingFront, setNormalizingFront] = useState(false);
   const [micError, setMicError] = useState("");
 
-  // Update form when params change (e.g. navigated from Translate tab)
   useEffect(() => {
-    if (params.arabic) setArabic(params.arabic);
-    if (params.english) setEnglish(params.english);
-    if (params.deckId) setSelectedDeckId(params.deckId);
-  }, [params.arabic, params.english, params.deckId]);
+    if (selectedDeckIds.length === 0 && decks.length > 0) {
+      setSelectedDeckIds([decks[0].id]);
+    }
+  }, [decks]);
+
+  useEffect(() => {
+    if (params.front) setFront(params.front);
+    else if (params.arabic) setFront(params.arabic);
+    if (params.back) setBack(params.back);
+    else if (params.english) setBack(params.english);
+    if (params.deckId) setSelectedDeckIds([params.deckId]);
+  }, [params.front, params.back, params.arabic, params.english, params.deckId]);
 
   const topPad = Platform.OS === "web" ? 20 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  function toggleDeck(deckId: string) {
+    setSelectedDeckIds((prev) =>
+      prev.includes(deckId) ? prev.filter((id) => id !== deckId) : [...prev, deckId]
+    );
+  }
+
   function resetForm() {
-    setArabic("");
-    setEnglish("");
+    setFront("");
+    setBack("");
     setContext("");
-    setGrammarNotes("");
+    setNotes("");
     setCustomFields([]);
     setNewDeckName("");
     setMicError("");
-    setSelectedDeckId(decks[0]?.id ?? "");
+    setSelectedDeckIds(decks[0] ? [decks[0].id] : []);
   }
 
   async function handleSave() {
-    if (!arabic.trim() || !english.trim() || !selectedDeckId) return;
+    if (!front.trim() || !back.trim() || selectedDeckIds.length === 0) return;
     setSaving(true);
     try {
-      const selectedDeck = decks.find((deck) => deck.id === selectedDeckId);
-      let arabicValue = arabic.trim();
-      if (isLikelyRomanizedArabic(arabicValue)) {
-        arabicValue = await convertRomanizedToArabic(arabicValue);
-        setArabic(arabicValue);
+      let frontValue = front.trim();
+      if (isLikelyRomanizedArabic(frontValue)) {
+        frontValue = await convertRomanizedToArabic(frontValue);
+        setFront(frontValue);
       }
 
       const normalizedCustomFields = customFields
@@ -92,15 +110,18 @@ export default function CreateCardScreen() {
         }))
         .filter((field) => field.name.length > 0 && field.value.length > 0);
 
-      await createCard({
-        arabic: arabicValue,
-        english: english.trim(),
-        context: context.trim(),
-        grammarNotes: grammarNotes.trim(),
-        dialect: selectedDeck?.dialect || "MSA",
-        customFields: normalizedCustomFields,
-        deckId: selectedDeckId,
-      });
+      for (const deckId of selectedDeckIds) {
+        const deck = decks.find((d) => d.id === deckId);
+        await createCard({
+          front: frontValue,
+          back: back.trim(),
+          context: context.trim(),
+          grammarNotes: notes.trim(),
+          dialect: deck?.dialect || "MSA",
+          customFields: normalizedCustomFields,
+          deckId,
+        });
+      }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       resetForm();
       router.replace("/(tabs)");
@@ -109,53 +130,62 @@ export default function CreateCardScreen() {
     }
   }
 
-  async function handleNormalizeArabicInput() {
-    if (!isLikelyRomanizedArabic(arabic)) return;
-    setNormalizingArabic(true);
+  async function handleNormalizeFront() {
+    if (!isLikelyRomanizedArabic(front)) return;
+    setNormalizingFront(true);
     setMicError("");
     try {
-      const normalized = await convertRomanizedToArabic(arabic);
-      setArabic(normalized);
+      const normalized = await convertRomanizedToArabic(front);
+      setFront(normalized);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: unknown) {
       setMicError((e as Error).message || "Could not convert to Arabic script");
     } finally {
-      setNormalizingArabic(false);
+      setNormalizingFront(false);
     }
   }
 
-  async function handleArabicMic(text: string) {
+  async function handleFrontMic(text: string) {
     setMicError("");
     if (!isLikelyRomanizedArabic(text)) {
-      setArabic(text);
+      setFront(text);
       return;
     }
-    setNormalizingArabic(true);
+    setNormalizingFront(true);
     try {
       const normalized = await convertRomanizedToArabic(text);
-      setArabic(normalized);
+      setFront(normalized);
     } catch {
-      setArabic(text);
-      setMicError("Voice text captured. Tap the type icon to convert transliteration into Arabic script.");
+      setFront(text);
+      setMicError("Voice captured. Tap the Aa icon to convert Arabic transliteration to script.");
     } finally {
-      setNormalizingArabic(false);
+      setNormalizingFront(false);
     }
   }
 
-  const canSave = arabic.trim() && english.trim() && selectedDeckId;
+  const canSave = front.trim() && back.trim() && selectedDeckIds.length > 0;
+  const frontIsArabic = hasArabic(front);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => { resetForm(); router.replace("/(tabs)"); }}>
+        <TouchableOpacity
+          onPress={() => { resetForm(); router.replace("/(tabs)"); }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Feather name="x" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Flashcard</Text>
-        <TouchableOpacity onPress={handleSave} disabled={!canSave || saving}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Card</Text>
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={!canSave || saving}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={[styles.saveBtn, { backgroundColor: canSave ? colors.primary : colors.secondary, borderColor: canSave ? colors.primary : colors.border }]}
+        >
           {saving ? (
-            <ActivityIndicator color={colors.primary} size="small" />
+            <ActivityIndicator color={canSave ? colors.primaryForeground : colors.mutedForeground} size="small" />
           ) : (
-            <Text style={[styles.saveText, { color: canSave ? colors.primary : colors.mutedForeground }]}>
+            <Text style={[styles.saveText, { color: canSave ? colors.primaryForeground : colors.mutedForeground }]}>
               Save
             </Text>
           )}
@@ -169,19 +199,20 @@ export default function CreateCardScreen() {
         showsVerticalScrollIndicator={false}
         bottomOffset={24}
       >
+        {/* Front */}
         <View style={styles.field}>
           <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>Arabic Word *</Text>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Front *</Text>
             <View style={styles.labelActions}>
-              <CopyButton text={arabic} size={15} />
-              <ListenButton text={arabic} language="ar" size={16} />
-              {isLikelyRomanizedArabic(arabic) && (
+              <CopyButton text={front} size={15} />
+              <ListenButton text={front} language={frontIsArabic ? "ar" : "en"} size={16} />
+              {isLikelyRomanizedArabic(front) && (
                 <TouchableOpacity
-                  onPress={handleNormalizeArabicInput}
+                  onPress={handleNormalizeFront}
                   style={styles.iconBtn}
-                  disabled={normalizingArabic}
+                  disabled={normalizingFront}
                 >
-                  {normalizingArabic ? (
+                  {normalizingFront ? (
                     <ActivityIndicator size="small" color={colors.mutedForeground} />
                   ) : (
                     <Feather name="type" size={16} color={colors.mutedForeground} />
@@ -190,51 +221,57 @@ export default function CreateCardScreen() {
               )}
               <MicButton
                 size={28}
-                language="ar"
-                onTranscription={handleArabicMic}
+                language={frontIsArabic ? "ar" : "en"}
+                onTranscription={handleFrontMic}
                 onError={(err) => setMicError(err)}
               />
             </View>
           </View>
           <TextInput
-            value={arabic}
-            onChangeText={setArabic}
-            placeholder="الكلمة العربية"
+            value={front}
+            onChangeText={setFront}
+            placeholder="Term, word, question…"
             placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, styles.arabicInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
-            textAlign="right"
+            style={[
+              styles.input,
+              frontIsArabic && styles.rtlInput,
+              { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground },
+            ]}
+            textAlign={frontIsArabic ? "right" : "left"}
           />
           {micError ? (
             <Text style={[styles.micError, { color: colors.destructive }]}>{micError}</Text>
           ) : null}
         </View>
 
+        {/* Back */}
         <View style={styles.field}>
           <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>English Translation *</Text>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Back *</Text>
             <View style={styles.labelActions}>
-              <CopyButton text={english} size={15} />
-              <ListenButton text={english} language="en" size={16} />
+              <CopyButton text={back} size={15} />
+              <ListenButton text={back} language="en" size={16} />
               <MicButton
                 size={28}
                 language="en"
-                onTranscription={(text) => { setMicError(""); setEnglish(text); }}
+                onTranscription={(text) => { setMicError(""); setBack(text); }}
                 onError={(err) => setMicError(err)}
               />
             </View>
           </View>
           <TextInput
-            value={english}
-            onChangeText={setEnglish}
-            placeholder="English translation"
+            value={back}
+            onChangeText={setBack}
+            placeholder="Definition, translation, answer…"
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
           />
         </View>
 
+        {/* Context */}
         <View style={styles.field}>
           <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>Context Sentence (optional)</Text>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Context / Example (optional)</Text>
             <View style={styles.labelActions}>
               <CopyButton text={context} size={15} />
               <MicButton
@@ -248,7 +285,7 @@ export default function CreateCardScreen() {
           <TextInput
             value={context}
             onChangeText={setContext}
-            placeholder="Use the word in a sentence..."
+            placeholder="Use it in a sentence or give an example…"
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
             multiline
@@ -256,23 +293,24 @@ export default function CreateCardScreen() {
           />
         </View>
 
+        {/* Notes */}
         <View style={styles.field}>
           <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>Grammar Notes (optional)</Text>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Notes (optional)</Text>
             <View style={styles.labelActions}>
-              <CopyButton text={grammarNotes} size={15} />
+              <CopyButton text={notes} size={15} />
               <MicButton
                 size={28}
                 language="en"
-                onTranscription={(text) => { setMicError(""); setGrammarNotes(text); }}
+                onTranscription={(text) => { setMicError(""); setNotes(text); }}
                 onError={(err) => setMicError(err)}
               />
             </View>
           </View>
           <TextInput
-            value={grammarNotes}
-            onChangeText={setGrammarNotes}
-            placeholder="Verb form, gender, plural, etc."
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Extra notes, hints, mnemonics…"
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, styles.multiInput, { borderColor: colors.border, backgroundColor: colors.card, color: colors.foreground }]}
             multiline
@@ -280,6 +318,7 @@ export default function CreateCardScreen() {
           />
         </View>
 
+        {/* Extra fields */}
         <View style={styles.field}>
           <View style={styles.dynamicHeaderRow}>
             <Text style={[styles.label, { color: colors.mutedForeground }]}>Extra Fields</Text>
@@ -292,9 +331,9 @@ export default function CreateCardScreen() {
             </TouchableOpacity>
           </View>
 
-          {customFields.length === 0 ? (
-            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>Add custom fields to match imported deck structures.</Text>
-          ) : null}
+          {customFields.length === 0 && (
+            <Text style={[styles.helperText, { color: colors.mutedForeground }]}>Add extra fields to store additional data from imported decks.</Text>
+          )}
 
           {customFields.map((field, index) => (
             <View key={field.id} style={[styles.customFieldBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -327,27 +366,43 @@ export default function CreateCardScreen() {
           ))}
         </View>
 
+        {/* Deck selector */}
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>Deck *</Text>
+          <View style={styles.deckLabelRow}>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>Deck *</Text>
+            {selectedDeckIds.length > 1 && (
+              <View style={[styles.multiDeckBadge, { backgroundColor: colors.primary + "22" }]}>
+                <Text style={[styles.multiDeckBadgeText, { color: colors.primary }]}>
+                  {selectedDeckIds.length} decks selected
+                </Text>
+              </View>
+            )}
+          </View>
           {decks.length > 0 && (
             <View style={styles.deckList}>
-              {decks.map((deck) => (
-                <TouchableOpacity
-                  key={deck.id}
-                  style={[
-                    styles.deckOption,
-                    {
-                      borderColor: selectedDeckId === deck.id ? colors.primary : colors.border,
-                      backgroundColor: selectedDeckId === deck.id ? colors.primary + "22" : colors.card,
-                    },
-                  ]}
-                  onPress={() => setSelectedDeckId(deck.id)}
-                >
-                  <Text style={[styles.deckOptionText, { color: selectedDeckId === deck.id ? colors.primary : colors.foreground }]}>
-                    {deck.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {decks.map((deck) => {
+                const selected = selectedDeckIds.includes(deck.id);
+                return (
+                  <TouchableOpacity
+                    key={deck.id}
+                    style={[
+                      styles.deckOption,
+                      {
+                        borderColor: selected ? colors.primary : colors.border,
+                        backgroundColor: selected ? colors.primary + "18" : colors.card,
+                      },
+                    ]}
+                    onPress={() => toggleDeck(deck.id)}
+                  >
+                    <Text style={[styles.deckOptionText, { color: selected ? colors.primary : colors.foreground }]}>
+                      {deck.name}
+                    </Text>
+                    <View style={[styles.deckCheckbox, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary : "transparent" }]}>
+                      {selected && <Feather name="check" size={12} color={colors.primaryForeground} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -355,7 +410,7 @@ export default function CreateCardScreen() {
             <TextInput
               value={newDeckName}
               onChangeText={setNewDeckName}
-              placeholder="Or create new deck..."
+              placeholder="Or create new deck…"
               placeholderTextColor={colors.mutedForeground}
               style={[styles.newDeckInput, { color: colors.foreground }]}
             />
@@ -364,7 +419,7 @@ export default function CreateCardScreen() {
                 onPress={async () => {
                   const deck = await createDeck(newDeckName.trim(), "MSA");
                   setNewDeckName("");
-                  setSelectedDeckId(deck.id);
+                  setSelectedDeckIds((prev) => [...prev, deck.id]);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }}
                 style={[styles.createDeckBtn, { backgroundColor: colors.primary }]}
@@ -385,14 +440,23 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   header: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 17, fontWeight: "700" },
-  saveText: { fontSize: 16, fontWeight: "700" },
+  saveBtn: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 64,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveText: { fontSize: 15, fontWeight: "700" },
   content: { padding: 20, gap: 20 },
   field: { gap: 8 },
   labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -401,7 +465,7 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 4 },
   micError: { fontSize: 12, lineHeight: 18 },
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
-  arabicInput: { fontSize: 22, textAlign: "right", writingDirection: "rtl", lineHeight: 34 },
+  rtlInput: { fontSize: 22, writingDirection: "rtl", lineHeight: 34 },
   multiInput: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },
   compactInput: { minHeight: 44 },
   dynamicHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -411,9 +475,28 @@ const styles = StyleSheet.create({
   customFieldBox: { borderRadius: 10, borderWidth: 1, padding: 10, gap: 8 },
   customFieldTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   customFieldTitle: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  deckLabelRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  multiDeckBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  multiDeckBadgeText: { fontSize: 11, fontWeight: "700" },
   deckList: { gap: 8 },
-  deckOption: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  deckOptionText: { fontSize: 15, fontWeight: "600" },
+  deckOption: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  deckOptionText: { fontSize: 15, fontWeight: "600", flex: 1 },
+  deckCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   newDeckRow: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, paddingLeft: 14, paddingRight: 6, paddingVertical: 6, marginTop: 4 },
   newDeckInput: { flex: 1, fontSize: 15, paddingVertical: 6 },
   createDeckBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },

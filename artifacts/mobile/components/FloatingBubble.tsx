@@ -96,7 +96,7 @@ export function FloatingBubble({ initialText = "" }: { initialText?: string }) {
     setPopupVisible(false);
     setInputText("");
     setTranslation("");
-    router.push({ pathname: "/create-card", params: { arabic, english } });
+    router.push({ pathname: "/create-card", params: { front: arabic, back: english } });
   }
 
   const isArabicMode = direction === "ar_to_en";
