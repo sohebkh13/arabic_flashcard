@@ -1,14 +1,14 @@
 // Vercel serverless function — implements the full sync API directly.
 // Requires environment variables: DATABASE_URL, CLERK_SECRET_KEY
 
-const { neon } = require("@neondatabase/serverless");
+const { Pool } = require("pg");
 const { verifyToken } = require("@clerk/backend");
 
-// Lazy-initialize so module load doesn't throw when DATABASE_URL is absent
-let _sql;
-function getSql() {
-  if (!_sql) _sql = neon(process.env.DATABASE_URL);
-  return _sql;
+// Lazy pool — reused across warm invocations, created on first request
+let _pool;
+function getPool() {
+  if (!_pool) _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  return _pool;
 }
 
 const CORS_HEADERS = {
@@ -30,121 +30,127 @@ async function authenticate(req) {
 }
 
 async function handleGet(userId, res) {
-  const sql = getSql();
+  const pool = getPool();
   const [decks, cards, collections] = await Promise.all([
-    sql`
-      SELECT id, user_id as "userId", name, dialect,
-             created_at as "createdAt", updated_at as "updatedAt"
-      FROM decks WHERE user_id = ${userId}
-    `,
-    sql`
-      SELECT id, user_id as "userId", deck_id as "deckId",
-             arabic as front, english as back,
-             context, grammar_notes as "grammarNotes", dialect,
-             custom_fields as "customFields",
-             created_at as "createdAt", updated_at as "updatedAt",
-             interval, repetitions, ease_factor as "easeFactor", due_date as "dueDate"
-      FROM cards WHERE user_id = ${userId}
-    `,
-    sql`
-      SELECT id, user_id as "userId", name, deck_ids as "deckIds",
-             created_at as "createdAt", updated_at as "updatedAt"
-      FROM collections WHERE user_id = ${userId}
-    `,
+    pool.query(
+      `SELECT id, user_id as "userId", name, dialect,
+              created_at as "createdAt", updated_at as "updatedAt"
+       FROM decks WHERE user_id = $1`,
+      [userId],
+    ),
+    pool.query(
+      `SELECT id, user_id as "userId", deck_id as "deckId",
+              arabic as front, english as back,
+              context, grammar_notes as "grammarNotes", dialect,
+              custom_fields as "customFields",
+              created_at as "createdAt", updated_at as "updatedAt",
+              interval, repetitions, ease_factor as "easeFactor", due_date as "dueDate"
+       FROM cards WHERE user_id = $1`,
+      [userId],
+    ),
+    pool.query(
+      `SELECT id, user_id as "userId", name, deck_ids as "deckIds",
+              created_at as "createdAt", updated_at as "updatedAt"
+       FROM collections WHERE user_id = $1`,
+      [userId],
+    ),
   ]);
-  res.status(200).json({ decks, cards, collections });
+  res.status(200).json({ decks: decks.rows, cards: cards.rows, collections: collections.rows });
 }
 
 async function handlePut(userId, body, res) {
-  const sql = getSql();
+  const pool = getPool();
   const { decks = [], cards = [], collections = [] } = body;
 
-  const deckInserts = decks.map((d) => sql`
-    INSERT INTO decks (id, user_id, name, dialect, created_at, updated_at)
-    VALUES (${d.id}, ${userId}, ${d.name}, ${d.dialect}, ${d.createdAt}, ${d.updatedAt})
-    ON CONFLICT (id) DO UPDATE SET
-      name = EXCLUDED.name,
-      user_id = EXCLUDED.user_id,
-      dialect = EXCLUDED.dialect,
-      updated_at = EXCLUDED.updated_at
-    WHERE decks.updated_at < EXCLUDED.updated_at
-  `);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  const cardInserts = cards.map((c) => {
-    const arabic = c.front ?? c.arabic ?? "";
-    const english = c.back ?? c.english ?? "";
-    return sql`
-      INSERT INTO cards (
-        id, user_id, deck_id, arabic, english, context, grammar_notes,
-        dialect, custom_fields, created_at, updated_at,
-        interval, repetitions, ease_factor, due_date
-      ) VALUES (
-        ${c.id}, ${userId}, ${c.deckId}, ${arabic}, ${english},
-        ${c.context ?? ""}, ${c.grammarNotes ?? ""},
-        ${c.dialect}, ${JSON.stringify(c.customFields ?? [])},
-        ${c.createdAt}, ${c.updatedAt},
-        ${c.interval ?? 0}, ${c.repetitions ?? 0},
-        ${c.easeFactor ?? 2.5}, ${c.dueDate ?? 0}
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        user_id = EXCLUDED.user_id,
-        deck_id = EXCLUDED.deck_id,
-        arabic = EXCLUDED.arabic,
-        english = EXCLUDED.english,
-        context = EXCLUDED.context,
-        grammar_notes = EXCLUDED.grammar_notes,
-        dialect = EXCLUDED.dialect,
-        custom_fields = EXCLUDED.custom_fields,
-        updated_at = EXCLUDED.updated_at,
-        interval = EXCLUDED.interval,
-        repetitions = EXCLUDED.repetitions,
-        ease_factor = EXCLUDED.ease_factor,
-        due_date = EXCLUDED.due_date
-      WHERE cards.updated_at < EXCLUDED.updated_at
-    `;
-  });
+    for (const d of decks) {
+      await client.query(
+        `INSERT INTO decks (id, user_id, name, dialect, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name, user_id = EXCLUDED.user_id,
+           dialect = EXCLUDED.dialect, updated_at = EXCLUDED.updated_at
+         WHERE decks.updated_at < EXCLUDED.updated_at`,
+        [d.id, userId, d.name, d.dialect, d.createdAt, d.updatedAt],
+      );
+    }
 
-  const collectionInserts = collections.map((c) => sql`
-    INSERT INTO collections (id, user_id, name, deck_ids, created_at, updated_at)
-    VALUES (${c.id}, ${userId}, ${c.name}, ${JSON.stringify(c.deckIds ?? [])}, ${c.createdAt}, ${c.updatedAt})
-    ON CONFLICT (id) DO UPDATE SET
-      name = EXCLUDED.name,
-      user_id = EXCLUDED.user_id,
-      deck_ids = EXCLUDED.deck_ids,
-      updated_at = EXCLUDED.updated_at
-    WHERE collections.updated_at < EXCLUDED.updated_at
-  `);
+    for (const c of cards) {
+      const arabic = c.front ?? c.arabic ?? "";
+      const english = c.back ?? c.english ?? "";
+      await client.query(
+        `INSERT INTO cards (
+           id, user_id, deck_id, arabic, english, context, grammar_notes,
+           dialect, custom_fields, created_at, updated_at,
+           interval, repetitions, ease_factor, due_date
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15)
+         ON CONFLICT (id) DO UPDATE SET
+           user_id=EXCLUDED.user_id, deck_id=EXCLUDED.deck_id,
+           arabic=EXCLUDED.arabic, english=EXCLUDED.english,
+           context=EXCLUDED.context, grammar_notes=EXCLUDED.grammar_notes,
+           dialect=EXCLUDED.dialect, custom_fields=EXCLUDED.custom_fields,
+           updated_at=EXCLUDED.updated_at, interval=EXCLUDED.interval,
+           repetitions=EXCLUDED.repetitions, ease_factor=EXCLUDED.ease_factor,
+           due_date=EXCLUDED.due_date
+         WHERE cards.updated_at < EXCLUDED.updated_at`,
+        [
+          c.id, userId, c.deckId, arabic, english,
+          c.context ?? "", c.grammarNotes ?? "",
+          c.dialect, JSON.stringify(c.customFields ?? []),
+          c.createdAt, c.updatedAt,
+          c.interval ?? 0, c.repetitions ?? 0, c.easeFactor ?? 2.5, c.dueDate ?? 0,
+        ],
+      );
+    }
 
-  const allQueries = [...deckInserts, ...cardInserts, ...collectionInserts];
-  if (allQueries.length > 0) {
-    await sql.transaction(allQueries);
+    for (const c of collections) {
+      await client.query(
+        `INSERT INTO collections (id, user_id, name, deck_ids, created_at, updated_at)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name=EXCLUDED.name, user_id=EXCLUDED.user_id,
+           deck_ids=EXCLUDED.deck_ids, updated_at=EXCLUDED.updated_at
+         WHERE collections.updated_at < EXCLUDED.updated_at`,
+        [c.id, userId, c.name, JSON.stringify(c.deckIds ?? []), c.createdAt, c.updatedAt],
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 
   res.status(200).json({ ok: true });
 }
 
 async function handleDeleteDeck(userId, id, res) {
-  const sql = getSql();
+  const pool = getPool();
   await Promise.all([
-    sql`DELETE FROM decks WHERE id = ${id} AND user_id = ${userId}`,
-    sql`DELETE FROM cards WHERE deck_id = ${id} AND user_id = ${userId}`,
+    pool.query("DELETE FROM decks WHERE id = $1 AND user_id = $2", [id, userId]),
+    pool.query("DELETE FROM cards WHERE deck_id = $1 AND user_id = $2", [id, userId]),
   ]);
   res.status(200).json({ ok: true });
 }
 
 async function handleDeleteDecks(userId, ids, res) {
   if (!Array.isArray(ids) || ids.length === 0) { res.status(200).json({ ok: true }); return; }
-  const sql = getSql();
+  const pool = getPool();
   await Promise.all([
-    sql`DELETE FROM decks WHERE id = ANY(${ids}::text[]) AND user_id = ${userId}`,
-    sql`DELETE FROM cards WHERE deck_id = ANY(${ids}::text[]) AND user_id = ${userId}`,
+    pool.query("DELETE FROM decks WHERE id = ANY($1) AND user_id = $2", [ids, userId]),
+    pool.query("DELETE FROM cards WHERE deck_id = ANY($1) AND user_id = $2", [ids, userId]),
   ]);
   res.status(200).json({ ok: true });
 }
 
 async function handleDeleteCollection(userId, id, res) {
-  const sql = getSql();
-  await sql`DELETE FROM collections WHERE id = ${id} AND user_id = ${userId}`;
+  const pool = getPool();
+  await pool.query("DELETE FROM collections WHERE id = $1 AND user_id = $2", [id, userId]);
   res.status(200).json({ ok: true });
 }
 

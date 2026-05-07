@@ -1,0 +1,9 @@
+{
+  "name": "@workspace/api-functions",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@clerk/backend": "^3.4.3",
+    "pg": "^8.20.0"
+  }
+}
