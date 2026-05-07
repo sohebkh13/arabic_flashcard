@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { convertRomanizedToArabic, isLikelyRomanizedArabic } from "@/lib/deepl";
 import { CopyButton } from "@/components/CopyButton";
 import { ListenButton } from "@/components/ListenButton";
 import { MicButton } from "@/components/MicButton";
@@ -55,7 +54,6 @@ export default function CreateCardScreen() {
     params.deckId ? [params.deckId] : []
   );
   const [saving, setSaving] = useState(false);
-  const [normalizingFront, setNormalizingFront] = useState(false);
   const [micError, setMicError] = useState("");
 
   useEffect(() => {
@@ -92,75 +90,64 @@ export default function CreateCardScreen() {
     setSelectedDeckIds(decks[0] ? [decks[0].id] : []);
   }
 
+  async function doSave() {
+    const frontValue = front.trim();
+    const normalizedCustomFields = customFields
+      .map((field) => ({ id: field.id, name: field.name.trim(), value: field.value.trim() }))
+      .filter((field) => field.name.length > 0 && field.value.length > 0);
+    for (const deckId of selectedDeckIds) {
+      const deck = decks.find((d) => d.id === deckId);
+      await createCard({
+        front: frontValue,
+        back: back.trim(),
+        context: context.trim(),
+        grammarNotes: notes.trim(),
+        dialect: deck?.dialect || "MSA",
+        customFields: normalizedCustomFields,
+        deckId,
+      });
+    }
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   async function handleSave() {
-    if (!front.trim() || !back.trim() || selectedDeckIds.length === 0) return;
+    if (!canSave || saving) return;
     setSaving(true);
     try {
-      let frontValue = front.trim();
-      if (isLikelyRomanizedArabic(frontValue)) {
-        frontValue = await convertRomanizedToArabic(frontValue);
-        setFront(frontValue);
+      await doSave();
+      // back() returns to the deck page when coming from deck→create-card.
+      // Fall back to home when opened directly via the tab bar (no deckId param).
+      if (params.deckId) {
+        router.back();
+      } else {
+        router.replace("/(tabs)");
       }
-
-      const normalizedCustomFields = customFields
-        .map((field) => ({
-          id: field.id,
-          name: field.name.trim(),
-          value: field.value.trim(),
-        }))
-        .filter((field) => field.name.length > 0 && field.value.length > 0);
-
-      for (const deckId of selectedDeckIds) {
-        const deck = decks.find((d) => d.id === deckId);
-        await createCard({
-          front: frontValue,
-          back: back.trim(),
-          context: context.trim(),
-          grammarNotes: notes.trim(),
-          dialect: deck?.dialect || "MSA",
-          customFields: normalizedCustomFields,
-          deckId,
-        });
-      }
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      resetForm();
-      router.replace("/(tabs)");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleNormalizeFront() {
-    if (!isLikelyRomanizedArabic(front)) return;
-    setNormalizingFront(true);
-    setMicError("");
+  async function handleSaveAndContinue() {
+    if (!canSave || saving) return;
+    setSaving(true);
     try {
-      const normalized = await convertRomanizedToArabic(front);
-      setFront(normalized);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: unknown) {
-      setMicError((e as Error).message || "Could not convert to Arabic script");
+      await doSave();
+      // Reset form fields but keep the deck selection for the next card
+      setFront("");
+      setBack("");
+      setContext("");
+      setNotes("");
+      setCustomFields([]);
+      setMicError("");
+      setNewDeckName("");
     } finally {
-      setNormalizingFront(false);
+      setSaving(false);
     }
   }
 
-  async function handleFrontMic(text: string) {
+  function handleFrontMic(text: string) {
     setMicError("");
-    if (!isLikelyRomanizedArabic(text)) {
-      setFront(text);
-      return;
-    }
-    setNormalizingFront(true);
-    try {
-      const normalized = await convertRomanizedToArabic(text);
-      setFront(normalized);
-    } catch {
-      setFront(text);
-      setMicError("Voice captured. Tap the Aa icon to convert Arabic transliteration to script.");
-    } finally {
-      setNormalizingFront(false);
-    }
+    setFront(text);
   }
 
   const canSave = front.trim() && back.trim() && selectedDeckIds.length > 0;
@@ -170,26 +157,37 @@ export default function CreateCardScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <TouchableOpacity
-          onPress={() => { resetForm(); router.replace("/(tabs)"); }}
+          onPress={() => {
+            resetForm();
+            if (params.deckId) { router.back(); } else { router.replace("/(tabs)"); }
+          }}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
           <Feather name="x" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Card</Text>
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={!canSave || saving}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          style={[styles.saveBtn, { backgroundColor: canSave ? colors.primary : colors.secondary, borderColor: canSave ? colors.primary : colors.border }]}
-        >
-          {saving ? (
-            <ActivityIndicator color={canSave ? colors.primaryForeground : colors.mutedForeground} size="small" />
-          ) : (
-            <Text style={[styles.saveText, { color: canSave ? colors.primaryForeground : colors.mutedForeground }]}>
-              Save
-            </Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerBtns}>
+          <TouchableOpacity
+            onPress={handleSaveAndContinue}
+            disabled={!canSave || saving}
+            style={[styles.saveBtn, { backgroundColor: "transparent", borderColor: canSave ? colors.primary : colors.border }]}
+          >
+            <Text style={[styles.saveText, { color: canSave ? colors.primary : colors.mutedForeground }]}>Save +</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={!canSave || saving}
+            style={[styles.saveBtn, { backgroundColor: canSave ? colors.primary : colors.secondary, borderColor: canSave ? colors.primary : colors.border }]}
+          >
+            {saving ? (
+              <ActivityIndicator color={canSave ? colors.primaryForeground : colors.mutedForeground} size="small" />
+            ) : (
+              <Text style={[styles.saveText, { color: canSave ? colors.primaryForeground : colors.mutedForeground }]}>
+                Save
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAwareScrollViewCompat
@@ -206,19 +204,6 @@ export default function CreateCardScreen() {
             <View style={styles.labelActions}>
               <CopyButton text={front} size={15} />
               <ListenButton text={front} language={frontIsArabic ? "ar" : "en"} size={16} />
-              {isLikelyRomanizedArabic(front) && (
-                <TouchableOpacity
-                  onPress={handleNormalizeFront}
-                  style={styles.iconBtn}
-                  disabled={normalizingFront}
-                >
-                  {normalizingFront ? (
-                    <ActivityIndicator size="small" color={colors.mutedForeground} />
-                  ) : (
-                    <Feather name="type" size={16} color={colors.mutedForeground} />
-                  )}
-                </TouchableOpacity>
-              )}
               <MicButton
                 size={28}
                 language={frontIsArabic ? "ar" : "en"}
@@ -430,6 +415,7 @@ export default function CreateCardScreen() {
             )}
           </View>
         </View>
+
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -447,6 +433,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: { fontSize: 17, fontWeight: "700" },
+  headerBtns: { flexDirection: "row", alignItems: "center", gap: 8 },
   saveBtn: {
     borderRadius: 8,
     borderWidth: 1,

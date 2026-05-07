@@ -1,5 +1,5 @@
 import { cardsTable, collectionsTable, db, decksTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import type { AuthedRequest } from "../middlewares/requireAuth";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -9,14 +9,22 @@ const router: IRouter = Router();
 router.get("/sync", requireAuth, async (req, res) => {
   const userId = (req as AuthedRequest).userId;
   try {
-    const [decks, cards, collections] = await Promise.all([
+    const [decks, dbCards, collections] = await Promise.all([
       db.select().from(decksTable).where(eq(decksTable.userId, userId)),
       db.select().from(cardsTable).where(eq(cardsTable.userId, userId)),
       db.select().from(collectionsTable).where(eq(collectionsTable.userId, userId)),
     ]);
+    // DB stores arabic/english; client uses front/back
+    const cards = dbCards.map(({ arabic, english, ...c }) => ({
+      ...c,
+      front: arabic,
+      back: english,
+    }));
     res.json({ decks, cards, collections });
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch sync data" });
+    console.error("[sync GET]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Failed to fetch sync data", detail: msg });
   }
 });
 
@@ -48,7 +56,13 @@ router.put("/sync", requireAuth, async (req, res) => {
     if (cards.length > 0) {
       await db
         .insert(cardsTable)
-        .values(cards.map((c) => ({ ...c, userId })))
+        .values(cards.map(({ front, back, ...c }: any) => ({
+          ...c,
+          // Client stores front/back; DB columns are arabic/english
+          arabic: front ?? c.arabic ?? "",
+          english: back ?? c.english ?? "",
+          userId,
+        })))
         .onConflictDoUpdate({
           target: cardsTable.id,
           set: {
@@ -88,7 +102,55 @@ router.put("/sync", requireAuth, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to sync data" });
+    console.error("[sync PUT]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Failed to sync data", detail: msg });
+  }
+});
+
+router.delete("/sync/deck/:id", requireAuth, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+  const { id } = req.params;
+  try {
+    await Promise.all([
+      db.delete(decksTable).where(and(eq(decksTable.id, id), eq(decksTable.userId, userId))),
+      db.delete(cardsTable).where(and(eq(cardsTable.deckId, id), eq(cardsTable.userId, userId))),
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[sync DELETE deck]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Failed to delete deck", detail: msg });
+  }
+});
+
+router.delete("/sync/decks", requireAuth, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+  const { ids } = req.body as { ids: string[] };
+  if (!Array.isArray(ids) || ids.length === 0) { res.json({ ok: true }); return; }
+  try {
+    await Promise.all([
+      db.delete(decksTable).where(and(inArray(decksTable.id, ids), eq(decksTable.userId, userId))),
+      db.delete(cardsTable).where(and(inArray(cardsTable.deckId, ids), eq(cardsTable.userId, userId))),
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[sync DELETE decks]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Failed to delete decks", detail: msg });
+  }
+});
+
+router.delete("/sync/collection/:id", requireAuth, async (req, res) => {
+  const userId = (req as AuthedRequest).userId;
+  const { id } = req.params;
+  try {
+    await db.delete(collectionsTable).where(and(eq(collectionsTable.id, id), eq(collectionsTable.userId, userId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[sync DELETE collection]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Failed to delete collection", detail: msg });
   }
 });
 

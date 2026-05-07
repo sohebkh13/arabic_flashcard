@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useAuth } from "@clerk/clerk-expo";
 import { setUserId } from "@/lib/storage-keys";
 import { migrateGuestDataToUser } from "@/lib/storage";
-import { pullFromServer, pushToServer } from "@/lib/syncService";
+import { deleteDeckFromServer, deleteDecksFromServer, deleteCollectionFromServer, pullFromServer, pushToServer } from "@/lib/syncService";
 import {
   BackupData,
   Collection,
@@ -13,6 +13,7 @@ import {
   deleteCard,
   deleteCollection,
   deleteDeck,
+  deleteEmptyDecks,
   getDueCards,
   getCards,
   getCollections,
@@ -49,6 +50,7 @@ interface AppContextValue {
   removeDeckFromCollectionMut: (collectionId: string, deckId: string) => Promise<void>;
   exportBackup: (deckId?: string, collectionId?: string) => Promise<BackupData>;
   importBackupData: (raw: unknown) => Promise<{ importedDecks: number; importedCards: number; importedCollections: number }>;
+  purgeEmptyDecks: () => Promise<number>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -157,8 +159,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeDeck = useCallback(async (id: string) => {
     await deleteDeck(id);
     await refreshAll();
-    syncInBackground();
-  }, [refreshAll, syncInBackground]);
+    if (isSignedIn) {
+      getToken()
+        .then((token) => { if (token) deleteDeckFromServer(id, token).catch(console.error); })
+        .catch(console.error);
+    }
+  }, [refreshAll, isSignedIn, getToken]);
 
   const createCard = useCallback(async (card: Omit<Flashcard, "id" | "createdAt" | "updatedAt" | "interval" | "repetitions" | "easeFactor" | "dueDate">) => {
     const newCard = await saveCard(card);
@@ -212,8 +218,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeCollection = useCallback(async (id: string) => {
     await deleteCollection(id);
     await refreshAll();
-    syncInBackground();
-  }, [refreshAll, syncInBackground]);
+    if (isSignedIn) {
+      getToken()
+        .then((token) => { if (token) deleteCollectionFromServer(id, token).catch(console.error); })
+        .catch(console.error);
+    }
+  }, [refreshAll, isSignedIn, getToken]);
+
+  const purgeEmptyDecks = useCallback(async () => {
+    const deletedIds = await deleteEmptyDecks();
+    if (deletedIds.length > 0) {
+      await refreshAll();
+      if (isSignedIn) {
+        getToken()
+          .then((token) => { if (token) deleteDecksFromServer(deletedIds, token).catch(console.error); })
+          .catch(console.error);
+      }
+    }
+    return deletedIds.length;
+  }, [refreshAll, isSignedIn, getToken]);
 
   const addDeckToCollectionMut = useCallback(async (collectionId: string, deckId: string) => {
     await addDeckToCollection(collectionId, deckId);
@@ -250,6 +273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeDeckFromCollectionMut,
         exportBackup,
         importBackupData,
+        purgeEmptyDecks,
       }}
     >
       {children}

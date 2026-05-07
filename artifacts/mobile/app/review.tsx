@@ -23,6 +23,7 @@ function isArabic(text?: string) { return !!text && ARABIC_RE.test(text); }
 import { useColors } from "@/hooks/useColors";
 import { Flashcard } from "@/lib/storage";
 import { ReviewGrade, sm2Review } from "@/lib/sm2";
+import { LinkedText } from "@/components/LinkedText";
 import { ListenButton } from "@/components/ListenButton";
 
 export default function ReviewScreen() {
@@ -190,6 +191,9 @@ export default function ReviewScreen() {
                   isArabic(current?.front) && styles.rtlText,
                   { color: colors.foreground },
                 ]}
+                adjustsFontSizeToFit
+                minimumFontScale={0.45}
+                numberOfLines={5}
               >
                 {current?.front}
               </Text>
@@ -226,14 +230,19 @@ export default function ReviewScreen() {
                   />
                 </View>
                 <View style={styles.backMain}>
-                  <Text style={[styles.backText, isArabic(current?.back) && styles.rtlText, { color: colors.foreground }]}>
-                    {current?.back}
-                  </Text>
-                  <ListenButton
-                    text={current?.back}
-                    language={isArabic(current?.back) ? "ar" : "en"}
-                    size={20}
-                  />
+                  <LinkedText
+                    style={[styles.backText, isArabic(current?.back) && styles.rtlText, { color: colors.foreground }]}
+                    linkStyle={[styles.backText, { color: colors.primary, textDecorationLine: "underline" }]}
+                  >
+                    {current?.back ?? ""}
+                  </LinkedText>
+                  <View style={styles.listenWrapBack}>
+                    <ListenButton
+                      text={current?.back}
+                      language={isArabic(current?.back) ? "ar" : "en"}
+                      size={20}
+                    />
+                  </View>
                 </View>
                 {current?.grammarNotes ? (
                   <View style={[styles.notesBox, { backgroundColor: colors.secondary }]}>
@@ -348,12 +357,13 @@ const styles = StyleSheet.create({
   },
   dialectPillText: { fontSize: 12, fontWeight: "600" },
   listenWrapFront: { marginTop: -4 },
-  backHeader: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  backMain: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" },
-  frontText: { fontSize: 40, fontWeight: "800", textAlign: "center", letterSpacing: 0.5 },
+  listenWrapBack: { marginTop: 4 },
+  backHeader: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "stretch" },
+  backMain: { alignItems: "center", alignSelf: "stretch", gap: 8 },
+  frontText: { fontSize: 40, fontWeight: "800", textAlign: "center", letterSpacing: 0.5, alignSelf: "stretch" },
   rtlText: { textAlign: "right", writingDirection: "rtl" },
-  frontSmall: { fontSize: 18, textAlign: "center" },
-  backText: { fontSize: 28, fontWeight: "700", textAlign: "center" },
+  frontSmall: { fontSize: 16, textAlign: "center", flexShrink: 1 },
+  backText: { fontSize: 26, fontWeight: "700", textAlign: "center", alignSelf: "stretch" },
   arabicSmall: { fontSize: 20, textAlign: "right", writingDirection: "rtl" },
   englishMain: { fontSize: 28, fontWeight: "700", textAlign: "center" },
   notesBox: { borderRadius: 10, padding: 12, alignSelf: "stretch", gap: 4 },

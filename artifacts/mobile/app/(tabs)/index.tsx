@@ -48,7 +48,7 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { decks, cards, collections, dueByDeck, loading, createDeck, createCollection, exportBackup, importBackupData, addDeckToCollectionMut } = useApp();
+  const { decks, cards, collections, dueByDeck, loading, createDeck, createCollection, exportBackup, importBackupData, purgeEmptyDecks, addDeckToCollectionMut } = useApp();
 
   const [seenLanding, setSeenLanding] = useState<boolean | null>(null);
   const [forceBrowseView, setForceBrowseView] = useState(false);
@@ -81,6 +81,25 @@ const [modalVisible, setModalVisible] = useState(false);
   // Get decks not in any collection
   const deckIdsInCollections = new Set(collections.flatMap((c) => c.deckIds));
   const independentDecks = decks.filter((d) => !deckIdsInCollections.has(d.id));
+
+  // Last activity per deck = max of deck timestamps and all its cards' timestamps
+  function deckLastActivity(deckId: string): number {
+    const d = decks.find((x) => x.id === deckId);
+    const maxCard = cards
+      .filter((c) => c.deckId === deckId)
+      .reduce((m, c) => Math.max(m, c.updatedAt || c.createdAt || 0), 0);
+    return Math.max(d?.updatedAt || 0, d?.createdAt || 0, maxCard);
+  }
+
+  const sortedCollections = [...collections].sort((a, b) => {
+    const aAct = Math.max(a.updatedAt || a.createdAt || 0, ...a.deckIds.map(deckLastActivity));
+    const bAct = Math.max(b.updatedAt || b.createdAt || 0, ...b.deckIds.map(deckLastActivity));
+    return bAct - aAct;
+  });
+
+  const sortedIndependentDecks = [...independentDecks].sort(
+    (a, b) => deckLastActivity(b.id) - deckLastActivity(a.id)
+  );
 
   function openModal() {
     setNewDeckName("");
@@ -221,6 +240,26 @@ const [modalVisible, setModalVisible] = useState(false);
     runImport();
   }
 
+  function handlePurgeEmpty() {
+    const emptyCount = decks.filter((d) => !cards.some((c) => c.deckId === d.id)).length;
+    if (emptyCount === 0) return;
+    const msg = `Delete ${emptyCount} empty deck${emptyCount !== 1 ? "s" : ""}? This cannot be undone.`;
+    const doDelete = async () => {
+      const deleted = await purgeEmptyDecks();
+      if (deleted > 0) Alert.alert("Done", `Removed ${deleted} empty deck${deleted !== 1 ? "s" : ""}.`);
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(msg)) doDelete();
+    } else {
+      Alert.alert("Remove empty decks", msg, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  }
+
+  const emptyDeckCount = decks.filter((d) => !cards.some((c) => c.deckId === d.id)).length;
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header 
@@ -331,6 +370,17 @@ const [modalVisible, setModalVisible] = useState(false);
 
                 {/* Action Buttons */}
                 <View style={styles.actionButtonsRow}>
+                  {emptyDeckCount > 0 && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.destructive + "18", borderColor: colors.destructive }]}
+                      onPress={handlePurgeEmpty}
+                      disabled={busyTransfer}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="trash-2" size={16} color={colors.destructive} />
+                      <Text style={[styles.actionBtnText, { color: colors.destructive }]}>Empty ({emptyDeckCount})</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     style={[styles.actionBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
                     onPress={handleImportRequest}
@@ -377,7 +427,7 @@ const [modalVisible, setModalVisible] = useState(false);
 
               {/* Decks & Collections List */}
               <FlatList
-                data={independentDecks}
+                data={sortedIndependentDecks}
                 keyExtractor={(d) => d.id}
                 contentContainerStyle={{ padding: 16, paddingBottom: bottomPad, gap: 12 }}
                 ListHeaderComponent={
@@ -393,7 +443,7 @@ const [modalVisible, setModalVisible] = useState(false);
                           </View>
                         </View>
                         <View style={{ gap: 10 }}>
-                          {collections.map((collection) => {
+                          {sortedCollections.map((collection) => {
                             const collectionDecks = decks.filter((deck) => collection.deckIds.includes(deck.id));
                             const collectionCards = cards.filter((card) => collection.deckIds.includes(card.deckId));
                             return (

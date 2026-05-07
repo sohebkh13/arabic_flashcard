@@ -24,23 +24,28 @@ async function apiFetch<T>(
       ...(init?.headers ?? {}),
     },
   });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`API ${path} failed: ${res.status} — ${body}`);
+  }
   return res.json() as Promise<T>;
 }
 
-function mergeById<T extends { id: string; updatedAt: number }>(
+// Server is the authoritative source of what exists.
+// Items only on the server are added (created on another device).
+// Items on both: local wins only if strictly newer (unsynced local edit), otherwise server wins.
+// Items only local are DROPPED — they were deleted on another device.
+function serverWinsMerge<T extends { id: string; updatedAt: number }>(
   local: T[],
   remote: T[],
 ): T[] {
-  const map = new Map<string, T>();
-  for (const item of local) map.set(item.id, item);
-  for (const item of remote) {
-    const existing = map.get(item.id);
-    if (!existing || item.updatedAt > existing.updatedAt) {
-      map.set(item.id, item);
-    }
-  }
-  return Array.from(map.values());
+  const localMap = new Map<string, T>();
+  for (const item of local) localMap.set(item.id, item);
+
+  return remote.map((serverItem) => {
+    const localItem = localMap.get(serverItem.id);
+    return (localItem && localItem.updatedAt > serverItem.updatedAt) ? localItem : serverItem;
+  });
 }
 
 export async function pullFromServer(token: string): Promise<void> {
@@ -52,15 +57,28 @@ export async function pullFromServer(token: string): Promise<void> {
     getCollections(),
   ]);
 
-  const mergedDecks = mergeById(localDecks, serverData.decks);
-  const mergedCards = mergeById(localCards, serverData.cards);
-  const mergedCollections = mergeById(localCollections, serverData.collections);
+  const mergedDecks = serverWinsMerge(localDecks, serverData.decks);
+  const mergedCards = serverWinsMerge(localCards, serverData.cards);
+  const mergedCollections = serverWinsMerge(localCollections, serverData.collections);
 
   await Promise.all([
     AsyncStorage.setItem(getDecksKey(), JSON.stringify(mergedDecks)),
     AsyncStorage.setItem(getCardsKey(), JSON.stringify(mergedCards)),
     AsyncStorage.setItem(getCollectionsKey(), JSON.stringify(mergedCollections)),
   ]);
+}
+
+export async function deleteDeckFromServer(id: string, token: string): Promise<void> {
+  await apiFetch(`/api/sync/deck/${id}`, token, { method: "DELETE" });
+}
+
+export async function deleteDecksFromServer(ids: string[], token: string): Promise<void> {
+  if (ids.length === 0) return;
+  await apiFetch("/api/sync/decks", token, { method: "DELETE", body: JSON.stringify({ ids }) });
+}
+
+export async function deleteCollectionFromServer(id: string, token: string): Promise<void> {
+  await apiFetch(`/api/sync/collection/${id}`, token, { method: "DELETE" });
 }
 
 export async function pushToServer(token: string): Promise<void> {

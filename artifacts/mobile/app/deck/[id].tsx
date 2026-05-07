@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -26,7 +27,7 @@ export default function DeckScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { decks, cards, collections, dueByDeck, removeDeck, editDeck, removeCard, addDeckToCollectionMut, removeDeckFromCollectionMut } = useApp();
+  const { decks, cards, collections, dueByDeck, loading, removeDeck, editDeck, removeCard, addDeckToCollectionMut, removeDeckFromCollectionMut } = useApp();
 
   const deck = decks.find((d) => d.id === id);
   const deckCards = useMemo(() => cards.filter((c) => c.deckId === id), [cards, id]);
@@ -41,6 +42,14 @@ export default function DeckScreen() {
   const bottomPad = Platform.OS === "web" ? 16 : insets.bottom;
   const deckCollections = collections.filter((collection) => collection.deckIds.includes(deck?.id || ""));
   const availableCollections = collections;
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!deck) {
     return (

@@ -4,6 +4,7 @@
   "installCommand": "pnpm install",
   "rewrites": [
     { "source": "/api/deepl/:path*", "destination": "/api/deepl" },
+    { "source": "/api/sync/:path*", "destination": "/api/sync" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -187,6 +187,17 @@ export async function deleteDeck(id: string): Promise<void> {
   await AsyncStorage.setItem(getCardsKey(), JSON.stringify(filteredCards));
 }
 
+export async function deleteEmptyDecks(): Promise<string[]> {
+  const decks = await getDecks();
+  const cards = await getCards();
+  const deckIdsWithCards = new Set(cards.map((c) => c.deckId));
+  const emptyIds = decks.filter((d) => !deckIdsWithCards.has(d.id)).map((d) => d.id);
+  if (emptyIds.length === 0) return [];
+  const keep = new Set(emptyIds);
+  await AsyncStorage.setItem(getDecksKey(), JSON.stringify(decks.filter((d) => !keep.has(d.id))));
+  return emptyIds;
+}
+
 export async function getCards(): Promise<Flashcard[]> {
   try {
     const key = getCardsKey();
